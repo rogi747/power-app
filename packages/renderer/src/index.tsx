@@ -47,9 +47,11 @@ root.render(
       locale={zhCN}
       theme={customTheme}
     >
-      <Router>
-        <App />
-      </Router>
+      <Provider store={store}>
+        <Router>
+          <App />
+        </Router>
+      </Provider>
     </ConfigProvider>
   </React.StrictMode>,
 );

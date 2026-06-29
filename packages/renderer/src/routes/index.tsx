@@ -12,6 +12,10 @@ import Logs from '../pages/logs';
 import Start from '../pages/start';
 import Api from '../pages/api';
 import Extensions from '../pages/extensions';
+import Rpa from '../pages/rpa';
+import RpaBuilder from '../pages/rpa/builder';
+import RpaLogs from '../pages/rpa/logs';
+import RpaScheduler from '../pages/rpa/scheduler';
 interface RouteOption {
   path: string;
   name?: string;
@@ -60,6 +64,30 @@ export const useRoutes = () => {
         name: t('menu_extensions'),
         icon: <Icon icon="mdi:extension" />,
         component: Extensions,
+      },
+      {
+        path: '/rpa',
+        name: t('menu_rpa'),
+        icon: <Icon icon="hugeicons:workflow-square-03" />,
+        component: Rpa,
+      },
+      {
+        path: '/rpa/builder',
+        name: t('rpa_builder'),
+        component: RpaBuilder,
+        invisible: true,
+      },
+      {
+        path: '/rpa/logs',
+        name: t('rpa_logs'),
+        icon: <Icon icon="carbon:event-schedule" />,
+        component: RpaLogs,
+      },
+      {
+        path: '/rpa/scheduler',
+        name: t('rpa_scheduler'),
+        icon: <Icon icon="mdi:clock-outline" />,
+        component: RpaScheduler,
       },
       {
         path: '/sync',
