@@ -53,9 +53,9 @@ export async function createShortcutWithIcon(
       
       #Verify that the file was created successfully
       if (Test-Path "${shortcutPath.replace(/\\/g, '\\\\')}") {
-        Write-Output "快捷方式创建成功"
+        Write-Output "Shortcut created successfully"
       } else {
-        Write-Error "快捷方式创建失败"
+        Write-Error "Failed to create shortcut"
         exit 1
       }
     `;
@@ -76,17 +76,17 @@ export async function createShortcutWithIcon(
           }
 
           if (error) {
-            logger.error(`创建快捷方式失败: ${stderr}`);
+            logger.error(`Failed to create shortcut: ${stderr}`);
             reject(error);
           } else {
-            logger.info(`创建快捷方式成功: ${shortcutPath}`);
+            logger.info(`Shortcut created successfully: ${shortcutPath}`);
             resolve(shortcutPath);
           }
         },
       );
     });
   } catch (error) {
-    logger.error(`创建快捷方式异常: ${error}`);
+    logger.error(`Exception creating shortcut: ${error}`);
     throw error;
   }
 }
@@ -142,7 +142,7 @@ const getRealIP = async (proxy: DB.Proxy) => {
   } catch (error) {
     bridgeMessageToUI({
       type: 'error',
-      text: `获取真实IP失败: ${(error as {message: string}).message}`,
+      text: `Failed to get real IP: ${(error as {message: string}).message}`,
     });
     logger.error(`| Prepare | getRealIP | error: ${(error as {message: string}).message}`);
     return '';

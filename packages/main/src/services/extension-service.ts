@@ -148,12 +148,12 @@ export const initExtensionService = () => {
 
       return {
         success: true,
-        message: '同步成功',
+        message: 'Sync successful',
       };
     } catch (error) {
       return {
         success: false,
-        message: '同步失败',
+        message: 'Sync failed',
       };
     }
   });

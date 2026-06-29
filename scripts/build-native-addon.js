@@ -20,7 +20,7 @@ dotenv.config();
 const platform = process.env.ELECTRON_PLATFORM || process.platform;
 const arch = process.env.ELECTRON_ARCH || process.arch;
 
-console.log(`构建原生模块 (平台: ${platform}, 架构: ${arch})`);
+console.log(`Building native module (Platform: ${platform}, Arch: ${arch})`);
 
 //Native module directory
 const nativeAddonDir = path.join(__dirname, '../packages/main/src/native-addon');
@@ -43,27 +43,27 @@ try {
   }
 
   //Execute different build commands according to different platforms and architectures
-  console.log(`开始为 ${platform}-${arch} 构建原生模块...`);
+  console.log(`Starting to build native module for ${platform}-${arch}...`);
 
   try {
     if (platform === 'win32') {
-      console.log('在 Windows 平台构建原生模块...');
+      console.log('Building native module on Windows platform...');
       //Explicitly specify msvs_version
       execSync('npm run build:native-addon -- --msvs_version=2022', {stdio: 'inherit'});
     } else if (platform === 'darwin') {
       if (arch === 'arm64') {
-        console.log('在 macOS (arm64) 构建原生模块...');
+        console.log('Building native module on macOS (arm64)...');
         execSync('npm run build:native-addon:mac-arm64', {stdio: 'inherit'});
       } else if (arch === 'x64') {
-        console.log('在 macOS (x64) 构建原生模块...');
+        console.log('Building native module on macOS (x64)...');
         execSync('npm run build:native-addon:mac-x64', {stdio: 'inherit'});
       } else {
-        console.log(`在 macOS (${arch}) 构建原生模块...`);
+        console.log(`Building native module on macOS (${arch})...`);
         execSync('npm run build:native-addon', {stdio: 'inherit'});
       }
     } else {
       //Processing on other platforms
-      console.log(`在 ${platform} 平台构建原生模块...`);
+      console.log(`Building native module on ${platform} platform...`);
       execSync('npm run build:native-addon', {stdio: 'inherit'});
     }
   } catch (buildError) {
@@ -75,7 +75,7 @@ try {
     }
   }
 
-  console.log('构建命令执行完成，检查输出文件...');
+  console.log('Build command executed, checking output files...');
 
   //List directory contents using the command line
   if (platform === 'win32') {
@@ -87,7 +87,7 @@ try {
   }
 
   //Create directories and copy files using the command line
-  console.log('创建目标目录并复制文件...');
+  console.log('Creating target directory and copying files...');
   if (platform === 'win32') {
     execSync(`mkdir "${targetDir}" 2>nul || echo "Directory already exists"`, {stdio: 'inherit'});
     execSync(`copy "${sourcePath}" "${targetDir}\\window-addon.node"`, {stdio: 'inherit'});
@@ -97,16 +97,16 @@ try {
   }
 
   //Verify file copied
-  console.log('验证文件已复制...');
+  console.log('Verifying files copied...');
   if (platform === 'win32') {
     execSync(`dir "${targetDir}"`, {stdio: 'inherit'});
   } else {
     execSync(`ls -la "${targetDir}"`, {stdio: 'inherit'});
   }
 
-  console.log('原生模块构建和组织完成！');
+  console.log('Native module build and organization complete!');
 } catch (error) {
-  console.error('构建过程中发生错误:', error);
+  console.error('Error occurred during build process:', error);
   // If we are in CI, we want to fail the build
   if (process.env.GITHUB_ACTIONS) {
     process.exit(1);

@@ -6,26 +6,26 @@ import {openProfile} from './demo/profiles.js';
 async function main() {
   try {
     //Create windows in batches
-    const windowsToCreate = [{name: '窗口1'}, {name: '窗口2'}, {name: '窗口3'}];
+    const windowsToCreate = [{name: 'Window 1'}, {name: 'Window 2'}, {name: 'Window 3'}];
 
-    console.log('开始创建窗口...');
+    console.log('Starting to create windows...');
     const createdWindows = await batchCreateWindows(windowsToCreate);
-    console.log('创建的窗口:', createdWindows);
+    console.log('Created windows:', createdWindows);
 
-    console.log('打开指定 id 的窗口');
+    console.log('Open window with specified id');
     const openResult = await openProfile(247);
-    console.log('打开结果:', openResult);
+    console.log('Open result:', openResult);
 
     const windows = await getAllWindows();
 
     const openedWindows = windows?.filter(f => f.status > 1);
-    console.log('已打开的窗口:', openedWindows);
+    console.log('Opened windows:', openedWindows);
 
     const connectInfo = await fetch(`http://localhost:${openedWindows[0].port}/json/version`);
 
     console.log(await connectInfo.json());
   } catch (error) {
-    console.error('执行过程中出现错误:', error);
+    console.error('Error occurred during execution:', error);
   }
 }
 
