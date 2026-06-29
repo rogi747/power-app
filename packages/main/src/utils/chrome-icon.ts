@@ -45,7 +45,7 @@ export async function generateChromeIcon(
     }
 
     if (!sourceIconPath) {
-      logger.error('未找到PNG格式图标，请确保在buildResources或assets目录中有icon.png文件');
+      logger.error('PNG format icon not found, please make sure there is an icon.png file in the buildResources or assets directory');
       return '';
     }
 
@@ -95,7 +95,7 @@ export async function generateChromeIcon(
         const icoBuffer = await pngToIco([pngBuffer]);
         writeFileSync(icoPath, icoBuffer);
       } catch (err) {
-        logger.error(`无法将PNG转换为ICO: ${err}`);
+        logger.error(`Unable to convert PNG to ICO: ${err}`);
         return '';
       }
     }
@@ -109,13 +109,13 @@ export async function generateChromeIcon(
         unlinkSync(outputPngPath);
       }
     } catch (err) {
-      logger.warn(`清理临时文件失败: ${err}`);
+      logger.warn(`Failed to clean up temporary files: ${err}`);
     }
 
-    logger.info(`成功为${isMac ? 'macOS' : 'Windows'}创建带标签的图标: ${icoPath}`);
+    logger.info(`Successfully created labeled icon for ${isMac ? 'macOS' : 'Windows'}: ${icoPath}`);
     return icoPath;
   } catch (error) {
-    logger.error(`生成Chrome图标失败: ${error}`);
+    logger.error(`Failed to generate Chrome icon: ${error}`);
     return '';
   }
 }

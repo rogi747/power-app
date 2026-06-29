@@ -41,10 +41,10 @@ const parseCookie = (cookie: string) => {
     const jsonArray = JSON.parse(cookie);
     return jsonArray;
   } catch (error) {
-    console.error('解析错误:', error);
+    console.error('Parse error:', error);
     bridgeMessageToUI({
       type: 'error',
-      text: 'Cookie JSON 解析错误',
+      text: 'Cookie JSON parsing error',
     });
   }
 };

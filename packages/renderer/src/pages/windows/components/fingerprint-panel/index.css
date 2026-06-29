@@ -1,8 +1,0 @@
-.fingerprint-panel {
-  width: 520px;
-  flex-shrink: 0;
-}
-
-.fingerprint-panel .ant-form-item {
-  margin-bottom: 12px;
-}

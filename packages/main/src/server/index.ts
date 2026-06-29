@@ -6,7 +6,6 @@ import IPRouter from './routes/ip';
 import WindowRouter from './routes/window';
 import ProfilesRouter from './routes/profiles';
 import ProxyRouter from './routes/proxy';
-import ApiV1Router from './routes/api-v1';
 
 const app: Express = express();
 let port: number = 49156; //initial port
@@ -18,7 +17,6 @@ app.use('/ip', IPRouter);
 app.use('/window', WindowRouter);
 app.use('/profiles', ProfilesRouter);
 app.use('/proxy', ProxyRouter);
-app.use('/api/v1', ApiV1Router);
 
 app.get('/status', async (req, res) => {
   res.send({

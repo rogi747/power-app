@@ -26,16 +26,6 @@ export const ProxyBridge = {
     const result = await ipcRenderer.invoke('proxy-test', params);
     return result;
   },
-
-  async getUnused() {
-    const result = await ipcRenderer.invoke('proxy-getUnused');
-    return result;
-  },
-
-  async findDuplicates() {
-    const result = await ipcRenderer.invoke('proxy-findDuplicates');
-    return result;
-  },
   // async checkTmpProxy(proxy: DB.Proxy) {
   //   const result = await ipcRenderer.invoke('proxy-test', proxy);
   //   return result;

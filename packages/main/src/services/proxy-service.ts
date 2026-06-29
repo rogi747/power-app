@@ -31,15 +31,6 @@ export const initProxyService = () => {
     return await ProxyDB.getById(id);
   });
 
-  //Phase 4.2 — proxy pool helpers
-  ipcMain.handle('proxy-getUnused', async () => {
-    return await ProxyDB.getUnusedProxies();
-  });
-
-  ipcMain.handle('proxy-findDuplicates', async () => {
-    return await ProxyDB.findDuplicates();
-  });
-
   ipcMain.handle('proxy-test', async (_, testParams: number | DB.Proxy) => {
     if (typeof testParams === 'number') {
       const proxy = await ProxyDB.getById(testParams);

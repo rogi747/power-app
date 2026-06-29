@@ -12,4 +12,3 @@ export {TagBridge} from './bridges/tag';
 export {CommonBridge} from './bridges/common';
 export {SyncBridge} from './bridges/sync';
 export {ExtensionBridge} from './bridges/extension';
-export {AccountBridge} from './bridges/account';

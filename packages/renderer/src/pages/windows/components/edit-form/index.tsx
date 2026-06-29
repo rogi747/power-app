@@ -223,7 +223,7 @@ const WindowEditForm = ({
 
         <Col span={12}>
           <Form.Item<FieldType>
-            label="Chrome.exe 路径"
+            label="Chrome.exe path"
             name="localChromePath"
           >
             <Space.Compact style={{width: '100%'}}>
@@ -236,7 +236,7 @@ const WindowEditForm = ({
                 type="default"
                 onClick={() => handleChoosePath('localChromePath', 'openFile')}
               >
-                选择路径
+                Select path
               </Button>
             </Space.Compact>
           </Form.Item>
