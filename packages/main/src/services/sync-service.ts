@@ -42,13 +42,13 @@ export const initSyncService = () => {
 
     if (!hasPermission) {
       //Prompt user for permission when app starts
-      logger.warn('应用需要辅助功能权限来排列窗口');
+      logger.warn('App requires accessibility permissions to arrange windows');
       dialog
         .showMessageBox({
           type: 'warning',
-          title: '需要辅助功能权限',
-          message: '请在系统偏好设置中为应用授予辅助功能权限，以启用窗口排列功能。',
-          buttons: ['前往设置', '稍后再说'],
+          title: 'Accessibility permissions required',
+          message: 'Please grant accessibility permissions to the app in System Preferences to enable window arrangement.',
+          buttons: ['Go to Settings', 'Later'],
           defaultId: 0,
         })
         .then(({response}) => {

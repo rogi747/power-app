@@ -16,7 +16,7 @@ if (fs.existsSync(macArm64Path)) {
   appPath = macPath;
   console.log('Using regular mac app path:', appPath);
 } else {
-  console.error('应用路径不存在，请先构建应用');
+  console.error('App path does not exist, please build the app first');
   process.exit(1);
 }
 
@@ -55,7 +55,7 @@ const unpackedPath = path.join(appPath, 'Contents/Resources/app.asar.unpacked');
 if (fs.existsSync(unpackedPath)) {
   signNativeModules(unpackedPath);
 } else {
-  console.error('app.asar.unpacked 目录不存在:', unpackedPath);
+  console.error('app.asar.unpacked directory does not exist:', unpackedPath);
 }
 
 //Finally re-sign the entire app
@@ -66,16 +66,16 @@ execSync(
 );
 
 //Set execution permissions
-console.log('设置执行权限...');
+console.log('Setting execution permissions...');
 execSync(`chmod -R +x "${appPath}"`, {stdio: 'inherit'});
-console.log(`特别设置主程序权限: ${appPath}/Contents/MacOS/Chrome Power`);
+console.log(`Special permission setup for main program: ${appPath}/Contents/MacOS/Chrome Power`);
 execSync(`chmod +x "${appPath}/Contents/MacOS/Chrome Power"`, {stdio: 'inherit'});
 
 //Remove isolation attribute
-console.log('移除隔离属性...');
+console.log('Removing quarantine attributes...');
 execSync(`xattr -dr com.apple.quarantine "${appPath}" || true`, {stdio: 'inherit'});
 
-console.log('验证签名...');
+console.log('Verifying signature...');
 execSync(`codesign --verify --deep --strict --verbose=2 "${appPath}"`, {stdio: 'inherit'});
 
 //Sign all binaries and frameworks

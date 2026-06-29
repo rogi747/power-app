@@ -36,13 +36,13 @@ async function main() {
         const destination = path.join(toDir, folder);
 
         if (await fs.pathExists(source)) {
-          console.log(`正在复制文件夹: ${folder} (${window.profile_id})`);
+          console.log(`Copying folder: ${folder} (${window.profile_id})`);
           if (await fs.pathExists(destination)) {
             await fs.remove(destination);
           }
           await fs.copy(source, destination);
         } else {
-          console.log(`源文件夹不存在: ${folder} (${window.profile_id})`);
+          console.log(`Source folder does not exist: ${folder} (${window.profile_id})`);
         }
       }
 
@@ -52,19 +52,19 @@ async function main() {
         const destination = path.join(toDir, file);
 
         if (await fs.pathExists(source)) {
-          console.log(`正在复制文件: ${file} (${window.profile_id})`);
+          console.log(`Copying file: ${file} (${window.profile_id})`);
           await fs.copy(source, destination, {overwrite: true});
         } else {
-          console.log(`源文件不存在: ${file} (${window.profile_id})`);
+          console.log(`Source file does not exist: ${file} (${window.profile_id})`);
         }
       }
 
-      console.log(`已完成 ${window.profile_id} 的数据迁移`);
+      console.log(`Completed data migration for ${window.profile_id}`);
     }
 
-    console.log('所有配置文件迁移完成');
+    console.log('All profile configurations migrated');
   } catch (error) {
-    console.error('执行过程中出现错误:', error);
+    console.error('Error occurred during execution:', error);
   }
 }
 

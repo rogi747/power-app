@@ -38,7 +38,7 @@ jobs:
       contents: write
 
     strategy:
-      fail-fast: false  # 更改为false，允许一个平台失败时其他平台继续
+      fail-fast: false  # Change to false to allow other platforms to continue if one fails
       matrix:
         include:
           - os: windows-2022
@@ -64,7 +64,7 @@ jobs:
           git lfs install
           git lfs pull
 
-      # 配置环境变量
+      # Configure environment variables
       - name: Configure environment
         shell: bash
         env:
@@ -73,7 +73,7 @@ jobs:
           NODE_PRE_GYP_MIRROR: "https://npmmirror.com/mirrors/node-pre-gyp/"
         run: |
           echo "Environment configured"
-          # 设置平台特定环境变量
+          # Set platform-specific environment variables
           if [ "${{ matrix.platform }}" == "win" ]; then
             echo "ELECTRON_PLATFORM=win32" >> $GITHUB_ENV
             echo "ELECTRON_ARCH=x64" >> $GITHUB_ENV
@@ -86,7 +86,7 @@ jobs:
             echo "ELECTRON_ARCH=x64" >> $GITHUB_ENV
           fi
 
-      # 缓存依赖
+      # Cache dependencies
       - name: Cache npm dependencies
         uses: actions/cache@v3
         with:
@@ -98,23 +98,23 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.arch }}-npm-
 
-      # macOS 特定设置
+      # macOS specific settings
       - name: Setup macOS build tools
         if: startsWith(matrix.platform, 'mac')
         run: |
           sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
           sudo xcodebuild -license accept
           
-          # 安装Python 3.11
+          # Install Python 3.11
           brew install python@3.11 make gcc
           
-          # 设置Python路径
+          # Set Python path
           echo "PYTHON=/opt/homebrew/opt/python@3.11/bin/python3.11" >> $GITHUB_ENV
           
-          # 安装setuptools
+          # Install setuptools
           /opt/homebrew/opt/python@3.11/bin/python3.11 -m pip install setuptools
 
-      # 设置Node.js
+      # Setup Node.js
       - name: Use Node.js
         uses: actions/setup-node@v3
         with:
@@ -150,7 +150,7 @@ jobs:
           ELECTRON_ARCH: ${{ env.ELECTRON_ARCH }}
           GYP_MSVS_VERSION: 2022
           npm_config_msvs_version: 2022
-      # 安装Apple证书
+      # Install Apple certificates
       - name: Install Apple certificates
         if: startsWith(matrix.platform, 'mac')
         env:
@@ -169,27 +169,27 @@ jobs:
           mkdir -p $CERTIFICATE_PATH
           echo "$BUILD_CERTIFICATE_BASE64" | base64 -D > $CERTIFICATE_PATH/certificate.p12
           
-          # 创建钥匙串
+          # Create keychain
           security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
           security set-keychain-settings -t 3600 -u build.keychain
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
           security default-keychain -s build.keychain
           
-          # 导入证书
+          # Import certificates
           security import $CERTIFICATE_PATH/certificate.p12 -k build.keychain -P "$P12_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
 
-      # 创建环境配置
+      # Create environment config
       - name: Create .env.production.local
         run: |
           echo "VITE_APP_API=${{ secrets.VITE_APP_API }}" > .env.production.local
           echo "VITE_START_PAGE_URL=${{ secrets.VITE_START_PAGE_URL }}" >> .env.production.local
 
-      # 构建项目
+      # Build project
       - name: Build Project
         run: npm run build
 
-      # 构建和发布项目（使用electron-builder内置发布功能）
+      # Build and release project (using electron-builder built-in release feature)
       - name: Build and Publish for Windows
         if: matrix.platform == 'win'
         uses: nick-fields/retry@v2
@@ -244,7 +244,7 @@ jobs:
             dist/*.blockmap
           retention-days: 7
 
-      # # macOS特定：签名原生模块（如果需要）
+      # # macOS specific: sign native modules (if needed)
       # - name: Sign native modules (macOS)
       #   if: startsWith(matrix.platform, 'mac') && !inputs.dry-run
       #   env:
@@ -252,37 +252,37 @@ jobs:
       #   run: |
       #     node scripts/sign-native-modules.js
 
-      # # 验证发布
+      # # Verify release
       # - name: Verify Release Assets
-      #   if: success() || failure()  # 即使前一步失败也运行
+      #   if: success() || failure()  # Run even if previous step fails
       #   shell: bash
       #   run: |
-      #     # 获取BUILD_TIME
+      #     # Get BUILD_TIME
       #     BUILD_TIME="${{ github.run_number }}"
           
-      #     # 使用最新release而不是特定tag
+      #     # Use latest release instead of specific tag
       #     RELEASE_URL="https://api.github.com/repos/${{ github.repository }}/releases/latest"
-      #     echo "检查最新Release: $RELEASE_URL"
+      #     echo "Check latest Release: $RELEASE_URL"
           
-      #     # 尝试最多5次，每次间隔15秒
+      #     # Try up to 5 times, interval 15 seconds
       #     MAX_ATTEMPTS=5
       #     for ((i=1; i<=MAX_ATTEMPTS; i++)); do
-      #       echo "检查资产 (尝试 $i / $MAX_ATTEMPTS)..."
+      #       echo "Checking assets (Attempt $i / $MAX_ATTEMPTS)..."
       #       ASSETS=$(curl -s -H "Authorization: token ${{ secrets.GH_TOKEN }}" $RELEASE_URL)
             
-      #       # 检查是否包含BUILD_TIME以及平台标识
+      #       # Check if BUILD_TIME and platform identifier are included
       #       if echo "$ASSETS" | grep -q "${BUILD_TIME}" && echo "$ASSETS" | grep -q "${{ matrix.platform }}"; then
-      #         echo "✅ 成功验证平台 ${{ matrix.platform }} 的资产! (包含构建编号: ${BUILD_TIME})"
+      #         echo "✅ Successfully verified assets for platform ${{ matrix.platform }}! (Includes build number: ${BUILD_TIME})"
       #         exit 0
       #       else
-      #         echo "资产未找到，等待中..."
+      #         echo "Assets not found, waiting..."
       #         if [ $i -lt $MAX_ATTEMPTS ]; then
       #           sleep 15
       #         fi
       #       fi
       #     done
           
-      #     echo "❌ $MAX_ATTEMPTS 次尝试后验证失败"
-      #     echo "API响应摘要:"
-      #     echo "$ASSETS" | grep -oE '"name":"[^"]+"' || echo "无法解析资产名称"
+      #     echo "❌ $MAX_ATTEMPTS attempts failed to verify"
+      #     echo "API response summary:"
+      #     echo "$ASSETS" | grep -oE '"name":"[^"]+"' || echo "Failed to parse asset names"
       #     exit 1

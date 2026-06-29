@@ -21,7 +21,7 @@ async function randomWait(min, max) {
 export async function autoScript(browser) {
   try {
   } catch (error) {
-    console.error('自动化脚本执行出错:', error);
+    console.error('Automation script execution error:', error);
   }
 }
 

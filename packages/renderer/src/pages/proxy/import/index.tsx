@@ -176,7 +176,7 @@ const ProxyImport = () => {
     const proxyRegex = /^([a-zA-Z0-9.-]+):(\d{1,5})(?::([a-zA-Z0-9._-]*):([a-zA-Z0-9._-]*))?$/;
 
     if (!proxyRegex.test(proxy)) {
-      throw new Error('无效的代理格式');
+      throw new Error('Invalid proxy format');
     }
 
     const parts = proxy.match(proxyRegex);

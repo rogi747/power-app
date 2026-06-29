@@ -44,7 +44,7 @@
           "header": [],
           "body": {
             "mode": "raw",
-            "raw": "{\r\n    \"window\": {\r\n        \"name\": \"修改测试\",\r\n        \"proxy_id\": 70\r\n    },\r\n    \"id\": 193\r\n}",
+            "raw": "{\r\n    \"window\": {\r\n        \"name\": \"Modify Test\",\r\n        \"proxy_id\": 70\r\n    },\r\n    \"id\": 193\r\n}",
             "options": {
               "raw": {
                 "language": "json"
@@ -111,7 +111,7 @@
           "header": [],
           "body": {
             "mode": "raw",
-            "raw": "{\r\n    \"window\": {\r\n        \"name\": \"修改测试\",\r\n        \"proxy_id\": 70\r\n    },\r\n    \"id\": 195\r\n}",
+            "raw": "{\r\n    \"window\": {\r\n        \"name\": \"Modify Test\",\r\n        \"proxy_id\": 70\r\n    },\r\n    \"id\": 195\r\n}",
             "options": {
               "raw": {
                 "language": "json"
@@ -147,7 +147,7 @@
           "header": [],
           "body": {
             "mode": "raw",
-            "raw": "{\r\n    \"window\": {\r\n        \"name\": \"修改测试\",\r\n        \"proxy_id\": 70\r\n    },\r\n    \"id\": 195\r\n}",
+            "raw": "{\r\n    \"window\": {\r\n        \"name\": \"Modify Test\",\r\n        \"proxy_id\": 70\r\n    },\r\n    \"id\": 195\r\n}",
             "options": {
               "raw": {
                 "language": "json"
@@ -297,7 +297,7 @@
           "header": [],
           "body": {
             "mode": "raw",
-            "raw": "{\r\n    \"window\": {\r\n        \"name\": \"修改测试\",\r\n        \"proxy_id\": 70\r\n    },\r\n    \"id\": 195\r\n}",
+            "raw": "{\r\n    \"window\": {\r\n        \"name\": \"Modify Test\",\r\n        \"proxy_id\": 70\r\n    },\r\n    \"id\": 195\r\n}",
             "options": {
               "raw": {
                 "language": "json"
@@ -364,7 +364,7 @@
           "header": [],
           "body": {
             "mode": "raw",
-            "raw": "{\r\n    \"window\": {\r\n        \"name\": \"修改测试\",\r\n        \"proxy_id\": 70\r\n    },\r\n    \"id\": 195\r\n}",
+            "raw": "{\r\n    \"window\": {\r\n        \"name\": \"Modify Test\",\r\n        \"proxy_id\": 70\r\n    },\r\n    \"id\": 195\r\n}",
             "options": {
               "raw": {
                 "language": "json"
@@ -400,7 +400,7 @@
           "header": [],
           "body": {
             "mode": "raw",
-            "raw": "{\r\n    \"window\": {\r\n        \"name\": \"修改测试\",\r\n        \"proxy_id\": 70\r\n    },\r\n    \"id\": 195\r\n}",
+            "raw": "{\r\n    \"window\": {\r\n        \"name\": \"Modify Test\",\r\n        \"proxy_id\": 70\r\n    },\r\n    \"id\": 195\r\n}",
             "options": {
               "raw": {
                 "language": "json"
