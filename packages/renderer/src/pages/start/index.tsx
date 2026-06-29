@@ -141,7 +141,9 @@ export default function Start() {
                 return isNaN(d.getTime()) ? windowInfo.opened_at : d.toLocaleString();
               })()}
             </Descriptions.Item>
-            <Descriptions.Item label="Cache Directory">{windowInfo.profile_id || '-'}</Descriptions.Item>
+            <Descriptions.Item label="Cache Directory">
+              {windowInfo.profile_id || '-'}
+            </Descriptions.Item>
             <Descriptions.Item label="Remark">{windowInfo.remark || '-'}</Descriptions.Item>
             <Descriptions.Item label="Tags">
               <Space wrap>

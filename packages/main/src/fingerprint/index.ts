@@ -571,7 +571,7 @@ export async function closeFingerprintWindow(id: number, force = false) {
 }
 
 /**
-* Focus and bring the specified window to the front
+ * Focus and bring the specified window to the front
  */
 export async function focusFingerprintWindow(id: number) {
   const windowData = await WindowDB.getById(id);

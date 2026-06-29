@@ -3,10 +3,7 @@ import type {DB, SafeAny} from '../../../shared/types/db';
 import {WindowDB} from '../db/window';
 import {ProxyDB} from '../db/proxy';
 import {generateFingerprint} from '../fingerprint/generator';
-import {
-  openFingerprintWindow,
-  closeFingerprintWindow,
-} from '../fingerprint/index';
+import {openFingerprintWindow, closeFingerprintWindow} from '../fingerprint/index';
 import {runWithConcurrency} from '../utils/concurrency';
 import {bridgeMessageToUI} from '../mainWindow';
 import {createLogger} from '../../../shared/utils/logger';
@@ -67,7 +64,7 @@ export const initBatchService = () => {
           id: undefined,
           profile_id: undefined,
           name: template.name ? `${template.name} ${i + 1}` : undefined,
-          proxy_id: pool.length ? pool[i % pool.length] : template.proxy_id ?? null,
+          proxy_id: pool.length ? pool[i % pool.length] : (template.proxy_id ?? null),
           status: 1,
         };
         const result = await WindowDB.create(window, fingerprint);

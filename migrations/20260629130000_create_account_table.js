@@ -13,12 +13,7 @@ exports.up = async function (knex) {
   }
   return knex.schema.createTable('account', table => {
     table.increments('id').primary().unique();
-    table
-      .integer('window_id')
-      .nullable()
-      .references('id')
-      .inTable('window')
-      .onDelete('CASCADE');
+    table.integer('window_id').nullable().references('id').inTable('window').onDelete('CASCADE');
     table.string('platform').nullable();
     table.string('username').nullable();
     table.text('password_enc').nullable();

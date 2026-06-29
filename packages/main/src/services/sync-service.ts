@@ -47,7 +47,8 @@ export const initSyncService = () => {
         .showMessageBox({
           type: 'warning',
           title: 'Accessibility permissions required',
-          message: 'Please grant accessibility permissions to the app in System Preferences to enable window arrangement.',
+          message:
+            'Please grant accessibility permissions to the app in System Preferences to enable window arrangement.',
           buttons: ['Go to Settings', 'Later'],
           defaultId: 0,
         })

@@ -143,17 +143,14 @@ export const initWindowService = () => {
   });
 
   //Persist an edited fingerprint JSON for a window.
-  ipcMain.handle(
-    'window-update-fingerprint',
-    async (_, id: number, fingerprint: Fingerprint) => {
-      const window = await WindowDB.getById(id);
-      return await WindowDB.update(id, {
-        ...window,
-        ua: fingerprint.ua,
-        fingerprint: JSON.stringify(fingerprint),
-      });
-    },
-  );
+  ipcMain.handle('window-update-fingerprint', async (_, id: number, fingerprint: Fingerprint) => {
+    const window = await WindowDB.getById(id);
+    return await WindowDB.update(id, {
+      ...window,
+      ua: fingerprint.ua,
+      fingerprint: JSON.stringify(fingerprint),
+    });
+  });
 
   ipcMain.handle('window-open', async (_, id: number) => {
     return await openFingerprintWindow(id);

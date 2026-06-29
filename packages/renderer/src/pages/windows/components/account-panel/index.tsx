@@ -1,4 +1,15 @@
-import {Button, Card, Form, Input, Modal, Popconfirm, Space, Table, Typography, message} from 'antd';
+import {
+  Button,
+  Card,
+  Form,
+  Input,
+  Modal,
+  Popconfirm,
+  Space,
+  Table,
+  Typography,
+  message,
+} from 'antd';
 import {DeleteOutlined, PlusOutlined} from '@ant-design/icons';
 import {useEffect, useState} from 'react';
 import {AccountBridge} from '#preload';

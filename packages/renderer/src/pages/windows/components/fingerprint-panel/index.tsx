@@ -1,4 +1,17 @@
-import {Button, Card, Col, Form, Input, InputNumber, Row, Select, Space, Switch, Typography, message} from 'antd';
+import {
+  Button,
+  Card,
+  Col,
+  Form,
+  Input,
+  InputNumber,
+  Row,
+  Select,
+  Space,
+  Switch,
+  Typography,
+  message,
+} from 'antd';
 import {ReloadOutlined, LockOutlined, UnlockOutlined} from '@ant-design/icons';
 import {useEffect, useState} from 'react';
 import {WindowBridge} from '#preload';

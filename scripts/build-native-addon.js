@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 
 /**
-* Build native modules and organize output files according to platform and architecture
-* This script will:
-* 1. Determine the current operating system and architecture
-* 2. Execute the appropriate build command
-* 3. Create platform/architecture specific directories
-* 4. Move the built module to the corresponding directory
+ * Build native modules and organize output files according to platform and architecture
+ * This script will:
+ * 1. Determine the current operating system and architecture
+ * 2. Execute the appropriate build command
+ * 3. Create platform/architecture specific directories
+ * 4. Move the built module to the corresponding directory
  */
 
 const {execSync} = require('child_process');

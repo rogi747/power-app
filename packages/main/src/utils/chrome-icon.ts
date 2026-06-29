@@ -45,7 +45,9 @@ export async function generateChromeIcon(
     }
 
     if (!sourceIconPath) {
-      logger.error('PNG icon not found, please ensure icon.png exists in buildResources or assets directory');
+      logger.error(
+        'PNG icon not found, please ensure icon.png exists in buildResources or assets directory',
+      );
       return '';
     }
 
