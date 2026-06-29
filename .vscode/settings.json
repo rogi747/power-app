@@ -74,16 +74,16 @@
     "xtree": "cpp"
   },
   "terminal.integrated.env.windows": {
-    // --- 代理设置 Start ---
-    // 如果你的 Clash 提供的是 HTTP 代理接口
+    // --- Proxy Settings Start ---
+    // If your Clash provides an HTTP proxy interface
     "HTTP_PROXY": "http://127.0.0.1:7897",
     "HTTPS_PROXY": "http://127.0.0.1:7897",
 
-    // 很重要：设置不需要走代理的地址
+    // Important: set addresses that do not need to go through proxy
     "NO_PROXY": "localhost,127.0.0.1,::1,*.lan,192.168.0.0/16,10.0.0.0/8,172.16.0.0/12"
-    // --- 代理设置 End ---
+    // --- Proxy Settings End ---
 
-    // 你也可以在这里设置其他项目特定的环境变量
+    // You can also set other project-specific environment variables here
     // "MY_PROJECT_VAR": "some_value"
   }
 }

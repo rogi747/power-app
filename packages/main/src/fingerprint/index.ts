@@ -135,7 +135,7 @@ const waitForChromeReady = async (chromePort: number, id: number, maxAttempts = 
         return true;
       }
     } catch (error) {
-      logger.error('连接失败', (error as Error).message);
+      logger.error('Connection failed', (error as Error).message);
       //Connection failed, keep waiting
     }
 

@@ -22,7 +22,7 @@ export async function batchCreateWindows(windows) {
       const result = await createWindow(window.name);
       results.push(result);
     } catch (error) {
-      console.error(`创建窗口失败: ${window.name}`, error);
+      console.error(`Failed to create window: ${window.name}`, error);
     }
   }
   return results;

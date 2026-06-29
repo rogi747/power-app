@@ -1,5 +1,5 @@
 /**
- * 添加 window 表缺失的字段
+ * Add missing fields to window table
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
