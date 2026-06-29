@@ -8,6 +8,7 @@ import {initExtensionService} from './extension-service';
 import {initMultiWindowSyncService} from './multi-window-sync-service';
 import {initAccountService} from './account-service';
 import {initBatchService} from './batch-service';
+import {initRpaService} from './rpa-service';
 
 export async function initServices() {
   initCommonService();
@@ -20,4 +21,5 @@ export async function initServices() {
   initMultiWindowSyncService();
   initAccountService();
   initBatchService();
+  initRpaService();
 }

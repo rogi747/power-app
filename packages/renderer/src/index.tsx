@@ -5,6 +5,8 @@ import App from './App';
 import type {ThemeConfig} from 'antd';
 import {ConfigProvider, message} from 'antd';
 import {HashRouter as Router} from 'react-router-dom';
+import {Provider} from 'react-redux';
+import {store} from './store';
 import 'dayjs/locale/zh-cn';
 // import enUS from 'antd/locale/en_US';
 import zhCN from 'antd/locale/zh_CN';

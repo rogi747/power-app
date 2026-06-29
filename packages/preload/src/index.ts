@@ -13,3 +13,4 @@ export {CommonBridge} from './bridges/common';
 export {SyncBridge} from './bridges/sync';
 export {ExtensionBridge} from './bridges/extension';
 export {AccountBridge} from './bridges/account';
+export {RpaBridge} from './bridges/rpa';
