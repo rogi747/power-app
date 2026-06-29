@@ -41,10 +41,10 @@ const parseCookie = (cookie: string) => {
     const jsonArray = JSON.parse(cookie);
     return jsonArray;
   } catch (error) {
-    console.error('解析错误:', error);
+    console.error('Parse error:', error);
     bridgeMessageToUI({
       type: 'error',
-      text: 'Cookie JSON 解析错误',
+      text: 'Cookie JSON parsing error',
     });
   }
 };
@@ -64,7 +64,7 @@ export const setCookieToPage = async (windowId: number, page: Page) => {
   }
 };
 
-// 限流函数，限制同时执行的任务数
+//Current limiting function, limiting the number of tasks executed simultaneously
 // function limitConcurrency(maxConcurrentTasks: number) {
 //   let activeTasks = 0;
 //   const taskQueue: (() => Promise<void>)[] = [];

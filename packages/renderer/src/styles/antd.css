@@ -45,7 +45,7 @@
   z-index: 1;
 }
 
-/* 空数据时滚动条单元格宽度 */
+/*Scroll bar cell width when empty data*/
 .ant-table-wrapper .ant-table-cell-fix-right.ant-table-cell-scrollbar {
   width: 0 !important;
   min-width: 0 !important;
@@ -53,17 +53,17 @@
   border: none !important;
 }
 
-/* 卡片内边距 */
+/*card padding*/
 .ant-card .ant-card-body {
   padding: 10px !important;
 }
 
-/* 表格高度 */
+/*table height*/
 .ant-table-wrapper .ant-table-body {
   max-height: 100vh;
 }
 
-/* 通用样式 */
+/*Universal style*/
 .page-pagination {
   margin-top: 10px;
 }
@@ -82,7 +82,7 @@
   margin-right: 12px;
 }
 
-/* 表格滚动条样式 */
+/*Table scroll bar style*/
 .ant-table-wrapper .ant-table-body::-webkit-scrollbar {
   width: 8px;
   height: 8px;

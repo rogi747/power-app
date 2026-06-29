@@ -5,11 +5,11 @@ if(MSVC)
     add_compile_options(/utf-8)
 endif()
 
-# 设置 C++ 标准
+# set up C++ standard
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# 查找 Node.js 依赖
+# Find Node.js rely
 execute_process(COMMAND node -p "require('node-addon-api').include"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     OUTPUT_VARIABLE NODE_ADDON_API_DIR
@@ -32,24 +32,24 @@ get_filename_component(NODE_DIR ${NODE_EXECUTABLE_PATH} DIRECTORY)
 
 string(REPLACE "\"" "" NODE_ADDON_API_DIR ${NODE_ADDON_API_DIR})
 
-# 添加头文件路径
+#Add header file path
 include_directories(
     ${NODE_ADDON_API_DIR}
     ${NODE_DIR}/../include/node
 )
 
-# 添加源文件
+#Add source files
 add_library(${PROJECT_NAME} SHARED
     window-addon.cpp
 )
 
-# 设置目标属性
+#Set target properties
 set_target_properties(${PROJECT_NAME} PROPERTIES
     PREFIX ""
     SUFFIX ".node"
 )
 
-# 根据平台添加不同的链接库
+# Add different link libraries according to the platform
 if(WIN32)
     target_link_libraries(${PROJECT_NAME} PRIVATE)
 elseif(APPLE)
@@ -59,7 +59,7 @@ elseif(APPLE)
     )
 endif()
 
-# 定义 NAPI_VERSION
+# definition NAPI_VERSION
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     NAPI_VERSION=8
 )

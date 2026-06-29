@@ -82,7 +82,7 @@ export default function Start() {
   useEffect(() => {
     const windowId = search.get('windowId');
     if (windowId) {
-      document.title = `(#${windowId}) ${windowInfo.name || '未命名'} ${moreInfo.ip ? '| IP:' + moreInfo.ip : ''} ｜ Chrome Power`;
+      document.title = `(#${windowId}) ${windowInfo.name || 'Unnamed'} ${moreInfo.ip ? '| IP:' + moreInfo.ip : ''} ｜ Chrome Power`;
     }
   }, [moreInfo.ip, windowInfo.name]);
 
@@ -117,13 +117,13 @@ export default function Start() {
           </div>
         }
       >
-        {/* 窗口信息 */}
+        {/*window information*/}
         <div className="mb-6">
           <Title
             level={5}
             className="mb-3 text-gray-700"
           >
-            窗口信息
+            window information
           </Title>
           <Descriptions
             column={1}
@@ -132,18 +132,18 @@ export default function Start() {
             className="[&_.ant-descriptions-item-label]:text-gray-500 [&_.ant-descriptions-item-label]:w-20 [&_.ant-descriptions-item-content]:text-gray-800"
           >
             <Descriptions.Item label="ID">{windowInfo.id || '-'}</Descriptions.Item>
-            <Descriptions.Item label="名称">{windowInfo.name || '-'}</Descriptions.Item>
-            <Descriptions.Item label="分组">{windowInfo.group_name || '-'}</Descriptions.Item>
-            <Descriptions.Item label="启动时间">
+            <Descriptions.Item label="name">{windowInfo.name || '-'}</Descriptions.Item>
+            <Descriptions.Item label="Group">{windowInfo.group_name || '-'}</Descriptions.Item>
+            <Descriptions.Item label="Start time">
               {(() => {
                 if (!windowInfo.opened_at) return '-';
                 const d = new Date(windowInfo.opened_at);
                 return isNaN(d.getTime()) ? windowInfo.opened_at : d.toLocaleString();
               })()}
             </Descriptions.Item>
-            <Descriptions.Item label="缓存目录">{windowInfo.profile_id || '-'}</Descriptions.Item>
-            <Descriptions.Item label="备注">{windowInfo.remark || '-'}</Descriptions.Item>
-            <Descriptions.Item label="标签">
+            <Descriptions.Item label="cache directory">{windowInfo.profile_id || '-'}</Descriptions.Item>
+            <Descriptions.Item label="Remark">{windowInfo.remark || '-'}</Descriptions.Item>
+            <Descriptions.Item label="Label">
               <Space wrap>
                 {windowInfo.tags_name?.length > 0
                   ? windowInfo.tags_name.map((name, i) => (
@@ -160,13 +160,13 @@ export default function Start() {
           </Descriptions>
         </div>
 
-        {/* 更多信息 */}
+        {/*More information*/}
         <div>
           <Title
             level={5}
             className="mb-3 text-gray-700"
           >
-            更多信息
+            More information
           </Title>
           <Descriptions
             column={1}
@@ -174,10 +174,10 @@ export default function Start() {
             colon={false}
             className="[&_.ant-descriptions-item-label]:text-gray-500 [&_.ant-descriptions-item-label]:w-20 [&_.ant-descriptions-item-content]:text-gray-800"
           >
-            <Descriptions.Item label="地理坐标">
+            <Descriptions.Item label="geographical coordinates">
               {moreInfo?.ll?.length ? `[${moreInfo.ll[0]}, ${moreInfo.ll[1]}]` : '-'}
             </Descriptions.Item>
-            <Descriptions.Item label="时区">{moreInfo.timeZone || '-'}</Descriptions.Item>
+            <Descriptions.Item label="time zone">{moreInfo.timeZone || '-'}</Descriptions.Item>
           </Descriptions>
         </div>
       </Card>

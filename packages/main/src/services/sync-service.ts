@@ -8,10 +8,10 @@ import {dialog} from 'electron';
 const logger = createLogger(MAIN_LOGGER_LABEL);
 let addon: unknown;
 if (!app.isPackaged) {
-  // 开发环境：直接从构建目录加载
+  //Development environment: Load directly from the build directory
   addon = require(path.join(__dirname, '../src/native-addon/build/Release/', 'window-addon.node'));
 } else {
-  // 生产环境：根据平台和架构选择正确路径
+  //Production environment: choose the right path based on platform and architecture
   // const addonDir = `${process.platform}-${process.arch}`;
 
   const addonPath = path.join(
@@ -35,25 +35,25 @@ export const initSyncService = () => {
     return;
   }
 
-  // 检查辅助功能权限（仅macOS）
+  //Check accessibility permissions (macOS only)
   if (process.platform === 'darwin') {
     const hasPermission = systemPreferences.isTrustedAccessibilityClient(false);
     logger.info(`Accessibility permission: ${hasPermission ? 'granted' : 'denied'}`);
 
     if (!hasPermission) {
-      // 在应用启动时提示用户授予权限
-      logger.warn('应用需要辅助功能权限来排列窗口');
+      //Prompt user for permission when app starts
+      logger.warn('App needs accessibility permissions to arrange windows');
       dialog
         .showMessageBox({
           type: 'warning',
-          title: '需要辅助功能权限',
-          message: '请在系统偏好设置中为应用授予辅助功能权限，以启用窗口排列功能。',
-          buttons: ['前往设置', '稍后再说'],
+          title: 'Requires accessibility permissions',
+          message: 'Please grant the app accessibility permissions in System Preferences to enable window arrangement.',
+          buttons: ['Go to settings', 'Talk to you later'],
           defaultId: 0,
         })
         .then(({response}) => {
           if (response === 0) {
-            // 打开辅助功能设置
+            //Open accessibility settings
             shell.openExternal(
               'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility',
             );

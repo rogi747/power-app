@@ -31,8 +31,8 @@
         } while (0)
 #endif
 
-// 辅助函数：判断窗口标题是否属于 Chromium 系浏览器主窗口
-// 兼容 Google Chrome, 百分浏览器 (Cent Browser), 以及普通的 Chromium
+//Auxiliary function: Determine whether the window title belongs to the main window of the Chromium browser
+//Compatible with Google Chrome, Cent Browser, and ordinary Chromium
 bool IsChromiumBrand(const char* title) {
     if (!title) return false;
     return (strstr(title, "Google Chrome") != nullptr || 
@@ -146,7 +146,7 @@ private:
     }
 
     bool IsExtensionWindow(const char* title, const char* className) {
-        // 关键修复：使用 IsChromiumBrand 替代硬编码的 "Google Chrome"
+        //Critical fix: Use IsChromiumBrand instead of hardcoded "Google Chrome"
         return title != nullptr &&
                strlen(title) > 0 &&
                !IsChromiumBrand(title);

@@ -56,7 +56,7 @@ class HttpProxy extends EventEmitter {
       password: this.opt.socksPassword || '',
     };
 
-    // 添加未捕获异常处理
+    //Add uncaught exception handling
     this.on('error', error => {
       logger.error('Proxy server error:', error);
     });
@@ -97,7 +97,7 @@ class HttpProxy extends EventEmitter {
       try {
         pReq = http.request(options);
 
-        // 处理请求错误
+        //Handling request errors
         pReq.on('error', e => {
           logger.error('Proxy connection error:', {
             error: e.message,
@@ -123,12 +123,12 @@ class HttpProxy extends EventEmitter {
           }
         });
 
-        // 处理响应
+        //Handle response
         pReq.on('response', pRes => {
           try {
             this.retryCount = 0;
 
-            // 为响应添加错误处理
+            //Add error handling to responses
             pRes.on('error', error => {
               logger.error('Response error:', error);
               try {
@@ -151,7 +151,7 @@ class HttpProxy extends EventEmitter {
           }
         });
 
-        // 处理请求端错误
+        //Handle request-side errors
         uReq.on('error', error => {
           logger.error('Client request error:', error);
           try {
@@ -161,7 +161,7 @@ class HttpProxy extends EventEmitter {
           }
         });
 
-        // 处理响应端错误
+        //Handle responder errors
         uRes.on('error', error => {
           logger.error('Client response error:', error);
           try {
@@ -201,12 +201,12 @@ class HttpProxy extends EventEmitter {
     SocksClient.createConnection(options, (error, pSocket) => {
       if (error) {
         try {
-          // 在写入之前检查 socket 是否可写
+          //Check if socket is writable before writing
           if (uSocket?.writable) {
             uSocket?.write(`HTTP/${uReq.httpVersion} 500 Connection error\r\n\r\n`);
           }
         } catch (writeError) {
-          // 忽略写入错误，只记录日志
+          //Ignore write errors, just log
           logger.error('Failed to write error response:', writeError);
         }
         this.emit('connect:error', error);

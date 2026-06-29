@@ -4,69 +4,69 @@
 
 ---
 
-首款开源~~指纹浏览器~~ Chrome 多开管理工具。基于 Puppeteer、Electron、React 开发。
+The first open source ~~fingerprint browser~~ Chrome multi-open management tool. Developed based on Puppeteer, Electron, and React.
 
-此软件遵循 AGPL 协议，因此如果你想对其进行修改发布，请保持开源。
+This software is licensed under the AGPL, so if you want to modify it and release it, please keep it open source.
 
-Chromium 源码修改请参考 [chrome-power-chromium](https://github.com/zmzimpl/chrome-power-chromium)
+For Chromium source code modification, please refer to [chrome-power-chromium](https://github.com/zmzimpl/chrome-power-chromium)
 
-## 免责声明
+## Disclaimer
 
-本代码仅用于技术交流、学习，请勿用于非法、商业用途。本代码只承诺不保存任何用户数据，不对用户数据负任何责任，请知悉。
+This code is only for technical exchange and learning, please do not use it for illegal or commercial purposes. This code only promises not to save any user data and is not responsible for any user data. Please be informed.
 
-## 开始
+## start
 
-按照以下步骤开始使用此软件：
+Follow these steps to start using this software:
 
-- 下载安装包[点击此处下载](https://github.com/TangNPC/chrome-power-app/releases)
-- 建议前往设置页面设置你的缓存目录。
-- 创建代理
-- 创建窗口
-  - 创建空白窗口
-  - 导入窗口
-    - 从模板导入
-    - 从 AdsPower 导入
+- Download the installation package [Click here to download](https://github.com/TangNPC/chrome-power-app/releases)
+- It is recommended to go to the settings page to set your cache directory.
+-Create proxy
+- Create window
+- Create blank window
+- Import window
+- Import from template
+- Import from AdsPower
 
-## 功能
+## Function
 
-- [x] 多窗口管理
-- [x] 代理设置
-- [x] 中英文支持
-- [x] Puppeteer/Playwright/Selenium 接入
-- [x] ~~支持 cookie 导入~~
-- [x] Mac 安装支持
-- [x] 扩展程序管理
-- [x] 同步操作
-- [ ] 自动化脚本
+- [x] Multi-window management
+- [x] proxy settings
+- [x] Chinese and English support
+- [x] Puppeteer/Playwright/Selenium access
+- [x] ~~Support cookie import~~
+- [x] Mac installation support
+- [x] Extension management
+- [x] Synchronous operations
+- [ ] Automation scripts
 
-## 本地运行/打包
+## Run locally/package
 
-环境：Node v18.18.2， npm 9.8.1
+Environment: Node v18.18.2, npm 9.8.1
 
-- 安装依赖 `npm i`
-- 运行调试 `npm run watch`
-- （非必要）打包部署 `npm run package`，注意打包时要把开发环境停掉，不然会导致 sqlite3 的包打包不了
+- Install dependencies `npm i`
+- Run debugging `npm run watch`
+- (Not necessary) Package and deploy `npm run package`. Be careful to stop the development environment when packaging, otherwise the sqlite3 package will not be packaged.
 
-## API 文档
+## API Documentation
 
 [Postman API](https://documenter.getpostman.com/view/25586363/2sA3BkdZ61#intro)
 
 ## FAQ
 
-### 缓存目录如何设置
+### How to set up the cache directory
 
-在设置页面，点击缓存目录，选择你的缓存目录，然后点击确定。注意：缓存目录不要设置在 C 盘以及安装目录，否则更新可能导致缓存目录丢失。
+On the Settings page, click Cache Directory, select your cache directory, and click OK. Note: Do not set the cache directory in the C drive or installation directory, otherwise the update may cause the cache directory to be lost.
 
-### Windows 10 安装之后闪退
+### Windows 10 crashes after installation
 
-如遇闪退，尝试在安装完成之后，右键启动程序 - 属性，在目标的末尾加入 --no-sandbox 或者 --in-process-gpu，再尝试启动
+If you encounter a crash, try after the installation is completed, right-click to start the program - Properties, add --no-sandbox or --in-process-gpu at the end of the target, and try to start again
 
-### 代理无法使用
+### The proxy cannot be used
 
-目前代理只支持 socks5 和 http, 请检查代理格式是否正确，本地代理是否开启 TUN mode 和 Global mode。请在检查后提起 issue 或者联系作者。
+Currently, the proxy only supports socks5 and http. Please check whether the proxy format is correct and whether the local proxy has TUN mode and Global mode enabled. Please file an issue or contact the author after checking.
 
-### Mac 自动排列无法使用
+### Mac automatic arrangement cannot be used
 
-Mac 自动排列需要辅助功能权限，可以查看运行日志，如果提示缺少权限，请在设置 - 辅助功能中开启。
+Mac automatic arrangement requires accessibility permissions. You can check the running log. If you are prompted that permissions are missing, please turn it on in Settings - Accessibility.
 
 

@@ -4,7 +4,7 @@ import type {DB, SafeAny} from '../../../shared/types/db';
 const all = async () => {
   return await db('proxy')
     .leftJoin('window', function () {
-      this.on('window.proxy_id', '=', 'proxy.id').andOn('window.status', '>', 0 as SafeAny); // 增加的筛选条件
+      this.on('window.proxy_id', '=', 'proxy.id').andOn('window.status', '>', 0 as SafeAny); //Added filter conditions
     })
     .select('proxy.*')
     .count('window.id as usageCount')
@@ -41,16 +41,16 @@ const deleteAll = async () => {
 };
 
 const batchDelete = async (ids: number[]) => {
-  // 首先，检查这些 IDs 是否被 window 表所引用
+  //First, check if these IDs are referenced by the window table
   const referencedIds = await db('window')
     .select('proxy_id')
     .where('status', '>', 0)
     .whereIn('proxy_id', ids)
     .then(rows => rows.map(row => row.proxy_id));
 
-  // 如果有被引用的 ID，可以选择抛出错误或者返回相关信息
+  //If there is a referenced ID, you can choose to throw an error or return relevant information
   if (referencedIds.length > 0) {
-    // 或者返回相关信息
+    //Or return relevant information
     return {success: false, message: 'Some IDs are referenced in the window table.', referencedIds};
   } else {
     try {

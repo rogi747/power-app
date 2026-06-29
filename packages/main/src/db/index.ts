@@ -25,21 +25,21 @@ const initWindowStatus = async () => {
 const initializeDatabase = async () => {
   const userDataPath = app.getPath('userData');
 
-  // 确保目录存在
+  //Make sure the directory exists
   if (!existsSync(userDataPath)) {
     mkdirSync(userDataPath, {recursive: true});
   }
 
   try {
-    // 初始化数据库连接
+    //Initialize database connection
     await db.raw('SELECT 1');
 
-    // 运行迁移
+    //Run migration
     await db.migrate.latest({
       directory: app.isPackaged ? join(process.resourcesPath, 'app/migrations') : './migrations',
     });
 
-    // 初始化窗口状态
+    //Initialize window state
     await initWindowStatus();
 
     console.log('Database initialized successfully');

@@ -42,12 +42,12 @@ export function getChromePath() {
     case 'Mac':
       {
         try {
-          // 首先检查默认安装路径
+          //First check the default installation path
           const defaultPath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
           if (existsSync(defaultPath)) {
             chromePath = defaultPath;
           } else {
-            // 使用 mdfind 搜索
+            //Search using mdfind
             const stdoutBuffer = execSync(
               'mdfind "kMDItemCFBundleIdentifier == \'com.google.Chrome\'"',
             );
@@ -60,7 +60,7 @@ export function getChromePath() {
             if (paths.length > 0 && existsSync(paths[0])) {
               chromePath = paths[0];
             } else {
-              // 尝试其他可能的路径
+              //Try other possible paths
               const alternativePaths = [
                 '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
                 `${process.env.HOME}/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`,
@@ -79,7 +79,7 @@ export function getChromePath() {
           if (!chromePath) {
             logger.error('Chrome executable not found in any standard location');
           } else {
-            // 确保文件有执行权限
+            //Make sure the file has execute permissions
             execSync(`chmod +x "${chromePath}"`);
           }
         } catch (error) {
@@ -96,7 +96,7 @@ export function getChromePath() {
 export function getRootDir() {
   const installationPath = process.resourcesPath;
   const parsedPath = parse(installationPath);
-  // 获取根目录
+  //Get root directory
   const rootDirectory = parsedPath.root;
   return rootDirectory;
 }

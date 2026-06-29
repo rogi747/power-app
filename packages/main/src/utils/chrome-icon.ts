@@ -19,17 +19,17 @@ export async function generateChromeIcon(
   const icoPath = isMac ? macChromeIcoPath : winChromeIcoPath;
 
   try {
-    // 确保目标目录存在
+    //Make sure the target directory exists
     const targetDir = join(profileDir, 'Default');
     if (!existsSync(targetDir)) {
       mkdirSync(targetDir, {recursive: true});
     }
 
-    // 临时文件路径
+    //Temporary file path
     const tempPngPath = join(targetDir, 'temp_icon.png');
     const outputPngPath = join(targetDir, 'modified_icon.png');
 
-    // 直接寻找PNG格式图标
+    //Directly look for PNG format icons
     const pngIconPaths = [
       join(app.isPackaged ? process.resourcesPath : process.cwd(), 'buildResources', 'icon.png'),
       join(app.isPackaged ? process.resourcesPath : process.cwd(), 'assets', 'icon.png'),
@@ -45,24 +45,24 @@ export async function generateChromeIcon(
     }
 
     if (!sourceIconPath) {
-      logger.error('未找到PNG格式图标，请确保在buildResources或assets目录中有icon.png文件');
+      logger.error('PNG format icon not found, please make sure there is an icon.png file in the buildResources or assets directory');
       return '';
     }
 
-    // 直接复制PNG图标到临时文件
+    //Copy PNG icon directly to temporary file
     const pngBuffer = readFileSync(sourceIconPath);
     writeFileSync(tempPngPath, pngBuffer);
 
-    // 获取图像信息
+    //Get image information
     const metadata = await sharp(tempPngPath).metadata();
     const width = metadata.width || 128;
     const height = metadata.height || 128;
 
-    // 创建底部标签区域(蓝色背景，占图像底部20%高度)
+    //Create the bottom label area (blue background, 20% of the bottom height of the image)
     const tagHeight = Math.floor(height * 0.25);
     const tagY = height - tagHeight;
 
-    // 创建SVG叠加层
+    //Create SVG overlay
     const svgBuffer = Buffer.from(`
         <svg width="${width}" height="${height}">
           <rect x="0" y="${tagY}" width="${width}" height="${tagHeight}" fill="#1677ff" />
@@ -79,28 +79,28 @@ export async function generateChromeIcon(
         </svg>
       `);
 
-    // 添加SVG叠加层到图像上
+    //Add SVG overlay to image
     await sharp(tempPngPath)
       .composite([{input: svgBuffer}])
       .toFile(outputPngPath);
 
-    // 第3步: 将PNG转换回平台特定格式
+    //Step 3: Convert PNG back to platform-specific format
     if (isMac) {
-      // macOS: 使用sips将png转换为icns
+      //macOS: Convert png to icns using sips
       execSync(`sips -s format icns "${outputPngPath}" --out "${icoPath}"`);
     } else {
-      // Windows: 使用png-to-ico将png转换为ico
+      //Windows: Convert png to ico using png-to-ico
       try {
         const pngBuffer = readFileSync(outputPngPath);
         const icoBuffer = await pngToIco([pngBuffer]);
         writeFileSync(icoPath, icoBuffer);
       } catch (err) {
-        logger.error(`无法将PNG转换为ICO: ${err}`);
+        logger.error(`Unable to convert PNG to ICO: ${err}`);
         return '';
       }
     }
 
-    // 清理临时文件
+    //Clean temporary files
     try {
       if (existsSync(tempPngPath)) {
         unlinkSync(tempPngPath);
@@ -109,13 +109,13 @@ export async function generateChromeIcon(
         unlinkSync(outputPngPath);
       }
     } catch (err) {
-      logger.warn(`清理临时文件失败: ${err}`);
+      logger.warn(`Failed to clean up temporary files: ${err}`);
     }
 
-    logger.info(`成功为${isMac ? 'macOS' : 'Windows'}创建带标签的图标: ${icoPath}`);
+    logger.info(`Successfully created labeled icon for ${isMac ? 'macOS' : 'Windows'}: ${icoPath}`);
     return icoPath;
   } catch (error) {
-    logger.error(`生成Chrome图标失败: ${error}`);
+    logger.error(`Failed to generate Chrome icon: ${error}`);
     return '';
   }
 }
