@@ -13,6 +13,8 @@ import {type IncomingMessage, type Server, type ServerResponse} from 'http';
 import {createLogger} from '../../../shared/utils/logger';
 import {WINDOW_LOGGER_LABEL} from '../constants';
 import {getProxyInfo} from './prepare';
+import {generateFingerprint, buildExtendedParameters} from './generator';
+import type {Fingerprint} from '../../../shared/types/fingerprint';
 import * as ProxyChain from 'proxy-chain';
 import {getSettings} from '../utils/get-settings';
 // import {randomFingerprint} from '../services/window-service';
@@ -238,16 +240,32 @@ export async function openFingerprintWindow(id: number, headless = false) {
       }
     }
 
-    // const fingerprint =
-    //   windowData.fingerprint && windowData.fingerprint !== '{}'
-    //     ? JSON.parse(windowData.fingerprint)
-    //     : randomFingerprint();
-    // if (!windowData.fingerprint || windowData.fingerprint === '{}') {
-    //   await WindowDB.update(id, {
-    //     ...windowData,
-    //     fingerprint,
-    //   });
-    // }
+    //Resolve fingerprint: parse the persisted JSON, or generate-and-persist on
+    //first open (backward-compat for profiles created before the fingerprint
+    //engine landed). The seed is the profile_id so re-generation is stable.
+    let fingerprint: Fingerprint | undefined;
+    if (!useLocalChrome) {
+      const raw = windowData.fingerprint;
+      let parsed: Fingerprint | undefined;
+      if (raw && raw !== '{}') {
+        try {
+          parsed = JSON.parse(raw) as Fingerprint;
+        } catch (error) {
+          logger.warn(`Window ${id} has invalid fingerprint JSON, regenerating: ${error}`);
+        }
+      }
+      if (parsed && parsed.fpVersion) {
+        fingerprint = parsed;
+      } else {
+        fingerprint = generateFingerprint(windowData.profile_id);
+        await WindowDB.update(id, {
+          ...windowData,
+          ua: fingerprint.ua,
+          fingerprint: JSON.stringify(fingerprint),
+        });
+        logger.info(`Window ${id} fingerprint generated and persisted`);
+      }
+    }
 
     if (driverPath) {
       const chromePort = await getAvailablePort();
@@ -274,7 +292,9 @@ export async function openFingerprintWindow(id: number, headless = false) {
             //Mac specific parameters
             ...(isMac ? ['--args'] : []),
 
-            // `--extended-parameters=${btoa(JSON.stringify(fingerprint))}`,
+            ...(fingerprint
+              ? [`--extended-parameters=${buildExtendedParameters(fingerprint)}`]
+              : []),
             '--force-color-profile=srgb',
             '--no-first-run',
             '--no-default-browser-check',
@@ -282,7 +302,7 @@ export async function openFingerprintWindow(id: number, headless = false) {
             '--disable-background-mode',
             `--remote-debugging-port=${chromePort}`,
             `--user-data-dir=${windowDataDir}`,
-            // `--user-agent=${fingerprint?.ua}`,
+            ...(fingerprint?.ua ? [`--user-agent=${fingerprint.ua}`] : []),
             '--unhandled-rejections=strict',
 
             //Mac-specific security parameters

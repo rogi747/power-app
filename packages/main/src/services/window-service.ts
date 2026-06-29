@@ -13,9 +13,12 @@ import {
 import {createLogger} from '../../../shared/utils/logger';
 import {SERVICE_LOGGER_LABEL} from '../constants';
 import {randomASCII, randomFloat, randomInt} from '../../../shared/utils';
+import {generateFingerprint} from '../fingerprint/generator';
+import type {Fingerprint} from '../../../shared/types/fingerprint';
 import path from 'path';
 import puppeteer from 'puppeteer';
 import {presetCookie} from '../puppeteer/helpers';
+import {normalizeCookies, serializeCookies} from '../utils/cookie';
 import {ExtensionDB} from '../db/extension';
 import * as ExcelJS from 'exceljs';
 const logger = createLogger(SERVICE_LOGGER_LABEL);
@@ -134,6 +137,24 @@ export const initWindowService = () => {
     return await WindowDB.getById(id);
   });
 
+  //Generate a fresh fingerprint for the editor (not persisted until saved).
+  ipcMain.handle('window-generate-fingerprint', async (_, seed?: string) => {
+    return generateFingerprint(seed);
+  });
+
+  //Persist an edited fingerprint JSON for a window.
+  ipcMain.handle(
+    'window-update-fingerprint',
+    async (_, id: number, fingerprint: Fingerprint) => {
+      const window = await WindowDB.getById(id);
+      return await WindowDB.update(id, {
+        ...window,
+        ua: fingerprint.ua,
+        fingerprint: JSON.stringify(fingerprint),
+      });
+    },
+  );
+
   ipcMain.handle('window-open', async (_, id: number) => {
     return await openFingerprintWindow(id);
   });
@@ -162,6 +183,69 @@ export const initWindowService = () => {
     return {
       success: true,
       message: 'Set cookie successfully.',
+    };
+  });
+
+  //Phase 3.3 — import cookies (EditThisCookie JSON / Netscape / header string)
+  //into one or more profiles. The raw text is normalized to puppeteer cookie
+  //shape and stored on `window.cookie` as JSON, ready for `presetCookie`.
+  ipcMain.handle(
+    'window-import-cookie',
+    async (_, windowIds: number[], rawCookie: string, defaultDomain?: string) => {
+      const cookies = normalizeCookies(rawCookie, defaultDomain);
+      if (!cookies.length) {
+        return {success: false, message: 'No valid cookies could be parsed.'};
+      }
+      const cookieJson = JSON.stringify(cookies);
+      const ids = Array.isArray(windowIds) ? windowIds : [windowIds];
+      for (const id of ids) {
+        const window = await WindowDB.getById(id);
+        if (window) {
+          await WindowDB.update(id, {...window, cookie: cookieJson});
+        }
+      }
+      return {
+        success: true,
+        message: `Imported ${cookies.length} cookies to ${ids.length} profile(s).`,
+        data: {count: cookies.length, windows: ids.length},
+      };
+    },
+  );
+
+  //Phase 3.3 — export live cookies from a running profile via CDP, returning a
+  //JSON string. Falls back to the stored `window.cookie` if the profile is not
+  //running.
+  ipcMain.handle('window-export-cookie', async (_, id: number) => {
+    const window = await WindowDB.getById(id);
+    if (!window) {
+      return {success: false, message: 'Profile not found.'};
+    }
+    // Running profile -> read live cookies over CDP.
+    if (window.status === 2) {
+      try {
+        const {webSocketDebuggerUrl} = await openFingerprintWindow(id, true);
+        const browser = await puppeteer.connect({
+          browserWSEndpoint: webSocketDebuggerUrl,
+          defaultViewport: null,
+        });
+        const page = await browser.newPage();
+        const client = await page.target().createCDPSession();
+        await client.send('Network.enable');
+        const {cookies} = await client.send('Network.getAllCookies');
+        await page.close();
+        browser.disconnect();
+        return {success: true, data: serializeCookies(cookies as SafeAny)};
+      } catch (error) {
+        logger.error('export cookie error', error);
+        return {success: false, message: 'Failed to read live cookies. ' + error};
+      }
+    }
+    // Not running -> return stored preset cookies.
+    return {
+      success: true,
+      data: window.cookie
+        ? serializeCookies(normalizeCookies(window.cookie))
+        : serializeCookies([]),
     };
   });
 };

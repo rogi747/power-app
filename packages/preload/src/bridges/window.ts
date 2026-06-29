@@ -41,6 +41,14 @@ export const WindowBridge = {
     const result = await ipcRenderer.invoke('window-fingerprint', windowId);
     return result;
   },
+  async generateFingerprint(seed?: string) {
+    const result = await ipcRenderer.invoke('window-generate-fingerprint', seed);
+    return result;
+  },
+  async updateFingerprint(id: number, fingerprint: SafeAny) {
+    const result = await ipcRenderer.invoke('window-update-fingerprint', id, fingerprint);
+    return result;
+  },
   async getById(id: number) {
     const result = await ipcRenderer.invoke('window-getById', id);
     return result;
@@ -63,6 +71,41 @@ export const WindowBridge = {
 
   async toogleSetCookie(id: number) {
     const result = await ipcRenderer.invoke('window-set-cookie', id);
+    return result;
+  },
+
+  async importCookie(windowIds: number[], rawCookie: string, defaultDomain?: string) {
+    const result = await ipcRenderer.invoke(
+      'window-import-cookie',
+      windowIds,
+      rawCookie,
+      defaultDomain,
+    );
+    return result;
+  },
+
+  async exportCookie(id: number) {
+    const result = await ipcRenderer.invoke('window-export-cookie', id);
+    return result;
+  },
+
+  async batchCreate(template: DB.Window, count: number, proxyIds?: number[]) {
+    const result = await ipcRenderer.invoke('window-batch-create', template, count, proxyIds);
+    return result;
+  },
+
+  async batchOpen(ids: number[], maxConcurrent?: number) {
+    const result = await ipcRenderer.invoke('window-batch-open', ids, maxConcurrent);
+    return result;
+  },
+
+  async batchClose(ids: number[], maxConcurrent?: number) {
+    const result = await ipcRenderer.invoke('window-batch-close', ids, maxConcurrent);
+    return result;
+  },
+
+  async tile(ids?: number[]) {
+    const result = await ipcRenderer.invoke('window-tile', ids);
     return result;
   },
 

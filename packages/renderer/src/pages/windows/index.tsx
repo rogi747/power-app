@@ -38,6 +38,7 @@ import {
 } from '@ant-design/icons';
 import type {DB} from '../../../../shared/types/db';
 import {CommonBridge, GroupBridge, ProxyBridge, TagBridge, WindowBridge} from '#preload';
+import CookieModal from './components/cookie-modal';
 import type {SearchProps} from 'antd/es/input';
 import {containsKeyword} from '/@/utils/str';
 import {useNavigate} from 'react-router-dom';
@@ -64,7 +65,55 @@ const Windows = () => {
   const [proxies, setProxies] = useState<DB.Proxy[]>([]);
   const [selectedProxy, setSelectedProxy] = useState<number>();
   const [currentPage, setCurrentPage] = useState(1);
+  const [cookieModalOpen, setCookieModalOpen] = useState(false);
   const navigate = useNavigate();
+
+  // Phase 4.5 — bulk operations driven by the current row selection. These call
+  // the concurrency-limited handlers in batch-service; progress is streamed to
+  // the global bridge-message toast by the main process.
+  const batchOpen = async () => {
+    if (!selectedRowKeys.length) {
+      messageApi.warning('Select profiles to open.');
+      return;
+    }
+    setLoading(true);
+    try {
+      await WindowBridge?.batchOpen(selectedRowKeys);
+      await fetchWindowData();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const batchClose = async () => {
+    if (!selectedRowKeys.length) {
+      messageApi.warning('Select profiles to close.');
+      return;
+    }
+    setLoading(true);
+    try {
+      await WindowBridge?.batchClose(selectedRowKeys);
+      await fetchWindowData();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const tileWindows = async () => {
+    const res = await WindowBridge?.tile(selectedRowKeys.length ? selectedRowKeys : undefined);
+    messageApi.open({
+      type: res?.success ? 'success' : 'warning',
+      content: res?.message ?? 'Tiling not available.',
+    });
+  };
+
+  const openCookieModal = () => {
+    if (!selectedRowKeys.length) {
+      messageApi.warning('Select profiles for cookie import/export.');
+      return;
+    }
+    setCookieModalOpen(true);
+  };
 
   const moreActionDropdownItems: MenuProps['items'] = [
     // {
@@ -76,6 +125,16 @@ const Windows = () => {
       key: 'export',
       label: t('window_export'),
       icon: <ExportOutlined />,
+    },
+    {
+      key: 'cookie',
+      label: 'Cookie Import / Export',
+      icon: <GlobalOutlined />,
+    },
+    {
+      key: 'tile',
+      label: 'Tile Windows',
+      icon: <ChromeOutlined />,
     },
     {
       type: 'divider',
@@ -347,6 +406,12 @@ const Windows = () => {
         break;
       case 'export':
         exportWindows();
+        break;
+      case 'cookie':
+        openCookieModal();
+        break;
+      case 'tile':
+        tileWindows();
         break;
       default:
         break;
@@ -632,14 +697,14 @@ const Windows = () => {
         <Space size={8}>
           <Button
             icon={<ChromeOutlined />}
-            onClick={() => openWindows()}
+            onClick={() => batchOpen()}
             type="primary"
           >
             {t('window_open')}
           </Button>
           <Button
             type="default"
-            onClick={() => closeWindows()}
+            onClick={() => batchClose()}
             icon={<CloseOutlined />}
           >
             {t('window_close')}
@@ -770,6 +835,11 @@ const Windows = () => {
           }}
         />
       </Modal>
+      <CookieModal
+        open={cookieModalOpen}
+        windowIds={selectedRowKeys}
+        onClose={() => setCookieModalOpen(false)}
+      />
     </div>
   );
 };

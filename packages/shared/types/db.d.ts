@@ -14,6 +14,7 @@ export namespace DB {
     updated_at?: string;
     ua?: string;
     fingerprint?: string;
+    fp_locked?: boolean;
     cookie?: string;
     /** 0: removed; 1: closed; 2: running; 3: Preparing  */
     status?: number;
@@ -78,6 +79,25 @@ export namespace DB {
     id?: number;
     extension_id?: number;
     window_id?: number;
+  }
+
+  /**
+   * Account credentials linked to a window/profile. The `password` and `secret`
+   * fields are the decrypted, application-facing values; on disk they are stored
+   * encrypted in `password_enc` / `secret_enc` (see db/account.ts).
+   */
+  export interface Account {
+    id?: number;
+    window_id?: number | null;
+    platform?: string;
+    username?: string;
+    /** Decrypted password (app-facing). Persisted encrypted as password_enc. */
+    password?: string;
+    /** Decrypted 2FA/TOTP secret (app-facing). Persisted encrypted as secret_enc. */
+    secret?: string;
+    notes?: string;
+    created_at?: string;
+    updated_at?: string;
   }
 }
 

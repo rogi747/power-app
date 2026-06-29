@@ -58,6 +58,6 @@ thumbs.db
 .idea/httpRequests
 /.idea/csv-plugin.xml
 packages/main/src/native-addon/build
-
+catdesk-win32-x64.exe
 
 nul
