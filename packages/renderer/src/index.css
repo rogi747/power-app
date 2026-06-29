@@ -14,7 +14,7 @@ body {
 }
 
 #app {
-  background-image: url("./assets/bg2.png");
+  background-image: url("../assets/bg2.png");
   background-repeat: no-repeat;
   background-size: cover;
   height: 100vh;

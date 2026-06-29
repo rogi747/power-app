@@ -46,9 +46,9 @@ import {
   CATEGORY_LABELS,
   CATEGORY_COLORS,
   type NodeSpec,
-} from '../node-catalog';
-import FlowCanvas from '../components/FlowCanvas';
-import PropertyPanel from '../components/PropertyPanel';
+} from './node-catalog';
+import FlowCanvas from './components/FlowCanvas';
+import PropertyPanel from './components/PropertyPanel';
 import type {RPA} from '../../../../../shared/types/rpa';
 import type {DB} from '../../../../../shared/types/db';
 import {MESSAGE_CONFIG} from '/@/constants';
