@@ -1,5 +1,6 @@
 import {randomUUID} from 'crypto';
 import type {RPA} from '../../../../shared/types/rpa';
+import {firstValidationMessage, validateWorkflow} from '../../../../shared/rpa/validator';
 import {createLogger} from '../../../../shared/utils/logger';
 import {WINDOW_LOGGER_LABEL} from '../../constants';
 import {WindowDB} from '../../db/window';
@@ -46,8 +47,10 @@ const buildGraph = (wf: RPA.Workflow): Graph => {
   return {nodes, out};
 };
 
-/** A start node has no incoming edges. */
+/** Prefer the explicit Start node; otherwise fall back to a node with no incoming edges. */
 const findStart = (wf: RPA.Workflow): RPA.Node | undefined => {
+  const explicit = wf.nodes.find(n => n.type === 'start' && !n.isGroup);
+  if (explicit) return explicit;
   const targets = new Set(wf.edges.map(e => e.target));
   return wf.nodes.find(n => !targets.has(n.id) && !n.isGroup);
 };
@@ -108,6 +111,15 @@ const runNodeWithPolicy = async (
   }
 };
 
+/** Start a workflow in the background and return a run id immediately. */
+export const startWorkflowRun = (options: RPA.RunOptions): RPA.RunResult => {
+  const runId = randomUUID();
+  void runWorkflow(options, undefined, runId).catch(error => {
+    logger.error('background rpa run failed', error);
+  });
+  return {runId, status: 'running', variables: {}};
+};
+
 /**
  * Execute a workflow against a single profile. The traversal walks the edge
  * graph from the start node; `loop` containers re-run their body via the
@@ -116,8 +128,9 @@ const runNodeWithPolicy = async (
 export const runWorkflow = async (
   options: RPA.RunOptions,
   record?: RPA.WorkflowRecord,
+  runIdOverride?: string,
 ): Promise<RPA.RunResult> => {
-  const runId = randomUUID();
+  const runId = runIdOverride ?? randomUUID();
   const runState = {cancelled: false};
   activeRuns.set(runId, runState);
 
@@ -130,6 +143,12 @@ export const runWorkflow = async (
   if (!definition) {
     activeRuns.delete(runId);
     return {runId, status: 'error', variables: {}, error: 'Workflow definition not found'};
+  }
+
+  const validation = validateWorkflow(definition);
+  if (!validation.valid) {
+    activeRuns.delete(runId);
+    return {runId, status: 'error', variables: {}, error: firstValidationMessage(validation)};
   }
 
   const windowData = await WindowDB.getById(options.windowId);
@@ -241,9 +260,10 @@ const executeFrom = async (
     });
 
     if (node.type === 'loop') {
-      await runLoop(node, graph, ctx, settings, runState, options);
-      currentId = nextNode(graph, currentId);
+      const loopResult = await runLoop(node, graph, ctx, settings, runState, options);
       await logFinished(ctx, node, startedAt);
+      if (loopResult?.end || loopResult?.break || loopResult?.continue) return loopResult;
+      currentId = nextNode(graph, currentId);
       continue;
     }
 
@@ -272,8 +292,8 @@ const executeFrom = async (
 
     await logFinished(ctx, node, startedAt);
 
-    if (result?.break || result?.continue) {
-      return result; // bubble up to the enclosing loop
+    if (result?.end || result?.break || result?.continue) {
+      return result; // bubble up to the enclosing loop / caller
     }
     if (result?.jumpTo) {
       currentId = result.jumpTo;
@@ -290,7 +310,7 @@ const runLoop = async (
   settings: RPA.WorkflowSettings,
   runState: {cancelled: boolean},
   options: RPA.RunOptions,
-): Promise<void> => {
+): Promise<NodeResult | void> => {
   const params = resolveParams(node.params, ctx.variables);
   const bodyEdge = (graph.out.get(node.id) ?? []).find(e => e.sourceHandle === 'loopBody');
   const bodyStart = bodyEdge?.target;
@@ -307,6 +327,7 @@ const runLoop = async (
     if (params.itemVar) ctx.variables[String(params.itemVar)] = items[i];
     if (params.indexVar) ctx.variables[String(params.indexVar)] = i;
     const signal = await executeFrom(bodyStart, graph, ctx, settings, runState, options);
+    if (signal?.end) return signal;
     if (signal?.break) break;
   }
 };

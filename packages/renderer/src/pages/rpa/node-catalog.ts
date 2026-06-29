@@ -73,6 +73,8 @@ export const NODE_CATALOG: NodeSpec[] = [
     fields: [
       {key: 'selector', label: 'Selector', type: 'text', placeholder: 'input[name=q]'},
       {key: 'text', label: 'Text', type: 'text', placeholder: 'Hello {{name}}'},
+      {key: 'clear', label: 'Clear first', type: 'boolean'},
+      {key: 'delay', label: 'Key delay (ms)', type: 'number', placeholder: '0'},
     ],
   },
   {
@@ -81,17 +83,32 @@ export const NODE_CATALOG: NodeSpec[] = [
     category: 'browser',
     icon: 'mdi:timer-sand',
     description: 'Pause until an element appears.',
-    fields: [{key: 'selector', label: 'Selector', type: 'text'}],
+    fields: [
+      {key: 'selector', label: 'Selector', type: 'text'},
+      {key: 'visible', label: 'Must be visible', type: 'boolean'},
+    ],
   },
   {
     type: 'getText',
     label: 'Get text',
     category: 'browser',
     icon: 'mdi:text-box-search',
-    description: 'Read an element\u2019s text into a variable.',
+    description: 'Read an element\'s text into a variable.',
     fields: [
       {key: 'selector', label: 'Selector', type: 'text'},
       {key: 'output', label: 'Save to variable', type: 'text', placeholder: 'result'},
+    ],
+  },
+  {
+    type: 'getAttribute',
+    label: 'Get attribute',
+    category: 'browser',
+    icon: 'mdi:tag-text-outline',
+    description: 'Read an element attribute into a variable.',
+    fields: [
+      {key: 'selector', label: 'Selector', type: 'text'},
+      {key: 'attribute', label: 'Attribute', type: 'text', placeholder: 'href'},
+      {key: 'output', label: 'Save to variable', type: 'text', placeholder: 'attr'},
     ],
   },
   {
@@ -100,7 +117,11 @@ export const NODE_CATALOG: NodeSpec[] = [
     category: 'browser',
     icon: 'mdi:camera',
     description: 'Capture the page.',
-    fields: [{key: 'path', label: 'File path', type: 'text', placeholder: 'shot.png'}],
+    fields: [
+      {key: 'path', label: 'File path', type: 'text', placeholder: 'shot.png'},
+      {key: 'fullPage', label: 'Full page', type: 'boolean'},
+      {key: 'output', label: 'Save base64 to variable', type: 'text', placeholder: 'screenshot'},
+    ],
   },
   {
     type: 'executeJS',
@@ -109,7 +130,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     icon: 'mdi:language-javascript',
     description: 'Evaluate code in the page.',
     fields: [
-      {key: 'code', label: 'Code', type: 'textarea', placeholder: 'return document.title'},
+      {key: 'code', label: 'Code', type: 'textarea', placeholder: 'document.title'},
       {key: 'output', label: 'Save result to', type: 'text'},
     ],
   },
@@ -119,10 +140,30 @@ export const NODE_CATALOG: NodeSpec[] = [
     category: 'browser',
     icon: 'mdi:mouse-move-down',
     description: 'Scroll the page.',
-    fields: [{key: 'y', label: 'Scroll Y (px)', type: 'number'}],
+    fields: [
+      {key: 'x', label: 'Scroll X (px)', type: 'number', placeholder: '0'},
+      {key: 'y', label: 'Scroll Y (px)', type: 'number', placeholder: '600'},
+    ],
   },
 
   // ---- Logic --------------------------------------------------------------
+  {
+    type: 'start',
+    label: 'Start',
+    category: 'logic',
+    icon: 'mdi:play-circle-outline',
+    description: 'Workflow entry point.',
+    fields: [],
+  },
+  {
+    type: 'end',
+    label: 'End',
+    category: 'logic',
+    icon: 'mdi:stop-circle-outline',
+    description: 'Stop the workflow successfully.',
+    fields: [],
+    outputs: [],
+  },
   {
     type: 'if',
     label: 'If / Else',
@@ -132,7 +173,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     fields: [
       {key: 'left', label: 'Left value', type: 'text', placeholder: '{{count}}'},
       {
-        key: 'op',
+        key: 'operator',
         label: 'Operator',
         type: 'select',
         options: [
@@ -140,8 +181,12 @@ export const NODE_CATALOG: NodeSpec[] = [
           {label: '!=', value: '!='},
           {label: '>', value: '>'},
           {label: '<', value: '<'},
+          {label: '>=', value: '>='},
+          {label: '<=', value: '<='},
           {label: 'contains', value: 'contains'},
+          {label: 'starts with', value: 'startsWith'},
           {label: 'is empty', value: 'isEmpty'},
+          {label: 'is not empty', value: 'isNotEmpty'},
         ],
       },
       {key: 'right', label: 'Right value', type: 'text'},
@@ -160,8 +205,8 @@ export const NODE_CATALOG: NodeSpec[] = [
     fields: [
       {key: 'count', label: 'Repeat count', type: 'number'},
       {key: 'items', label: 'Items (variable)', type: 'text', placeholder: '{{rows}}'},
-      {key: 'itemVar', label: 'Current item \u2192', type: 'text', placeholder: 'item'},
-      {key: 'indexVar', label: 'Current index \u2192', type: 'text', placeholder: 'i'},
+      {key: 'itemVar', label: 'Current item →', type: 'text', placeholder: 'item'},
+      {key: 'indexVar', label: 'Current index →', type: 'text', placeholder: 'i'},
     ],
     outputs: [
       {id: 'loopBody', label: 'Each'},
@@ -201,6 +246,17 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
+    type: 'jsonStringify',
+    label: 'Stringify JSON',
+    category: 'data',
+    icon: 'mdi:code-json',
+    description: 'Convert a value/object into JSON text.',
+    fields: [
+      {key: 'input', label: 'Value', type: 'text', placeholder: '{{data}}'},
+      {key: 'output', label: 'Save to', type: 'text'},
+    ],
+  },
+  {
     type: 'regex',
     label: 'Regex extract',
     category: 'data',
@@ -209,8 +265,29 @@ export const NODE_CATALOG: NodeSpec[] = [
     fields: [
       {key: 'input', label: 'Input', type: 'text'},
       {key: 'pattern', label: 'Pattern', type: 'text'},
+      {key: 'flags', label: 'Flags', type: 'text', placeholder: 'i'},
       {key: 'output', label: 'Save to', type: 'text'},
     ],
+  },
+  {
+    type: 'random',
+    label: 'Random number',
+    category: 'data',
+    icon: 'mdi:dice-multiple-outline',
+    description: 'Generate a random integer.',
+    fields: [
+      {key: 'min', label: 'Min', type: 'number', placeholder: '0'},
+      {key: 'max', label: 'Max', type: 'number', placeholder: '100'},
+      {key: 'output', label: 'Save to', type: 'text', placeholder: 'random'},
+    ],
+  },
+  {
+    type: 'uuid',
+    label: 'UUID',
+    category: 'data',
+    icon: 'mdi:identifier',
+    description: 'Generate a UUID-like value.',
+    fields: [{key: 'output', label: 'Save to', type: 'text', placeholder: 'uuid'}],
   },
 
   // ---- Integrations -------------------------------------------------------
@@ -253,6 +330,7 @@ export const NODE_CATALOG: NodeSpec[] = [
       {key: 'range', label: 'Range', type: 'text', placeholder: 'Sheet1'},
       {key: 'accessToken', label: 'Access token', type: 'text', secret: true},
       {key: 'values', label: 'Values (variable / JSON)', type: 'text'},
+      {key: 'output', label: 'Save response to', type: 'text', placeholder: 'sheetAppend'},
     ],
   },
   {
@@ -293,6 +371,7 @@ export const NODE_CATALOG: NodeSpec[] = [
       },
       {key: 'siteKey', label: 'Site key', type: 'text'},
       {key: 'pageUrl', label: 'Page URL', type: 'text'},
+      {key: 'imageBase64', label: 'Image base64', type: 'textarea'},
       {key: 'output', label: 'Save token to', type: 'text', placeholder: 'captcha'},
     ],
   },

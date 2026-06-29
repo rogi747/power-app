@@ -3,7 +3,7 @@ import {RpaDB} from '../db/rpa';
 import type {RPA} from '../../../shared/types/rpa';
 import {createLogger} from '../../../shared/utils/logger';
 import {SERVICE_LOGGER_LABEL} from '../constants';
-import {runWorkflow, cancelRun} from '../puppeteer/rpa/engine';
+import {startWorkflowRun, cancelRun} from '../puppeteer/rpa/engine';
 import {RpaThreadManager} from '../puppeteer/rpa/thread-manager';
 import {RpaScheduler, type RpaScheduleInput} from '../puppeteer/rpa/scheduler';
 
@@ -89,8 +89,8 @@ export const initRpaService = () => {
   // Run one workflow against one profile. For multi-profile / concurrent runs
   // the renderer enqueues through the thread manager (rpa-run-batch) instead.
   ipcMain.handle('rpa-run', async (_, options: RPA.RunOptions) => {
-    logger.info('run workflow', options?.workflowId, 'on window', options?.windowId);
-    return await runWorkflow(options);
+    logger.info('start workflow', options?.workflowId, 'on window', options?.windowId);
+    return startWorkflowRun(options);
   });
 
   ipcMain.handle('rpa-cancel', async (_, runId: string) => {

@@ -37,6 +37,7 @@ import type {RPA} from '../../../../shared/types/rpa';
 import type {DB} from '../../../../shared/types/db';
 import {MESSAGE_CONFIG} from '/@/constants';
 import {containsKeyword} from '/@/utils/str';
+import {firstValidationMessage, validateWorkflow} from '../../../../shared/rpa/validator';
 
 /**
  * RPA workflow list. The home of the Browser RPA feature: lists stored
@@ -157,6 +158,15 @@ const Rpa = () => {
 
   const confirmRun = async () => {
     if (!runTarget?.id || selectedWindowIds.length === 0) return;
+    const definition =
+      typeof runTarget.definition === 'string'
+        ? (JSON.parse(runTarget.definition) as RPA.Workflow)
+        : (runTarget.definition as RPA.Workflow | undefined);
+    const validation = validateWorkflow(definition);
+    if (!validation.valid) {
+      messageApi.error(firstValidationMessage(validation));
+      return;
+    }
     setRunning(true);
     try {
       if (selectedWindowIds.length === 1) {

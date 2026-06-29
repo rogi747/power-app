@@ -26,6 +26,8 @@ export interface ExecutionContext {
 export interface NodeResult {
   /** For branching nodes: which source handle to follow ('true' / 'false'). */
   branch?: string;
+  /** Stop the workflow gracefully. */
+  end?: boolean;
   /** Break out of the nearest enclosing loop. */
   break?: boolean;
   /** Skip to the next loop iteration. */
@@ -58,5 +60,14 @@ export const registerNode = (def: NodeDefinition): void => {
 };
 
 export const getNode = (type: string): NodeDefinition | undefined => registry.get(type);
+
+export const registerNodeAlias = (aliasType: string, targetType: string): void => {
+  const target = registry.get(targetType);
+  if (!target) {
+    throw new Error(`Cannot register RPA node alias ${aliasType}: target ${targetType} not found`);
+  }
+  if (registry.has(aliasType)) return;
+  registry.set(aliasType, {...target, type: aliasType});
+};
 
 export const listNodes = (): NodeDefinition[] => [...registry.values()];

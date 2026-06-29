@@ -145,7 +145,15 @@ const duplicate = async (id: number) => {
 };
 
 const emptyWorkflow = (): RPA.Workflow => ({
-  nodes: [],
+  nodes: [
+    {
+      id: 'start',
+      type: 'start',
+      label: 'Start',
+      position: {x: 80, y: 120},
+      params: {},
+    },
+  ],
   edges: [],
   variables: [],
   settings: {defaultTimeout: 30000, defaultRetry: 0, continueOnError: false},

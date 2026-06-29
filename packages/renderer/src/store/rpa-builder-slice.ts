@@ -21,19 +21,29 @@ export interface BuilderState {
   runId: string | null;
 }
 
-const initialState: BuilderState = {
+const createStartNode = (): RPA.Node => ({
+  id: 'start',
+  type: 'start',
+  label: 'Start',
+  position: {x: 80, y: 120},
+  params: {},
+});
+
+const createInitialState = (): BuilderState => ({
   workflowId: null,
   name: 'Untitled workflow',
   description: '',
-  nodes: [],
+  nodes: [createStartNode()],
   edges: [],
   variables: [],
-  settings: {},
-  selectedNodeId: null,
+  settings: {defaultTimeout: 30000, defaultRetry: 0, continueOnError: false},
+  selectedNodeId: 'start',
   dirty: false,
   running: false,
   runId: null,
-};
+});
+
+const initialState: BuilderState = createInitialState();
 
 const builderSlice = createSlice({
   name: 'rpaBuilder',
@@ -46,17 +56,19 @@ const builderSlice = createSlice({
           ? (JSON.parse(record.definition) as RPA.Workflow)
           : (record.definition as RPA.Workflow);
       state.workflowId = record.id ?? null;
-      state.name = record.name;
+      state.name = record.name ?? 'Untitled workflow';
       state.description = record.description ?? '';
-      state.nodes = def?.nodes ?? [];
+      state.nodes = def?.nodes?.length ? def.nodes : [createStartNode()];
       state.edges = def?.edges ?? [];
       state.variables = def?.variables ?? [];
-      state.settings = def?.settings ?? {};
+      state.settings = def?.settings ?? {defaultTimeout: 30000, defaultRetry: 0, continueOnError: false};
       state.selectedNodeId = null;
       state.dirty = false;
+      state.running = false;
+      state.runId = null;
     },
     newWorkflow() {
-      return {...initialState};
+      return createInitialState();
     },
     setName(state, action: PayloadAction<string>) {
       state.name = action.payload;
@@ -75,6 +87,7 @@ const builderSlice = createSlice({
       state.dirty = true;
     },
     addNode(state, action: PayloadAction<RPA.Node>) {
+      if (action.payload.type === 'start' && state.nodes.some(n => n.type === 'start')) return;
       state.nodes.push(action.payload);
       state.selectedNodeId = action.payload.id;
       state.dirty = true;
@@ -113,6 +126,8 @@ const builderSlice = createSlice({
       state.dirty = true;
     },
     removeNode(state, action: PayloadAction<string>) {
+      const node = state.nodes.find(n => n.id === action.payload);
+      if (node?.type === 'start') return;
       state.nodes = state.nodes.filter(n => n.id !== action.payload);
       state.edges = state.edges.filter(
         e => e.source !== action.payload && e.target !== action.payload,

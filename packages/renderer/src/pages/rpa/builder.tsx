@@ -49,9 +49,10 @@ import {
 } from './node-catalog';
 import FlowCanvas from './components/FlowCanvas';
 import PropertyPanel from './components/PropertyPanel';
-import type {RPA} from '../../../../../shared/types/rpa';
-import type {DB} from '../../../../../shared/types/db';
+import type {RPA} from '../../../../shared/types/rpa';
+import type {DB} from '../../../../shared/types/db';
 import {MESSAGE_CONFIG} from '/@/constants';
+import {firstValidationMessage, validateWorkflow} from '../../../../shared/rpa/validator';
 
 const {Text} = Typography;
 
@@ -125,6 +126,21 @@ const RpaBuilder = () => {
     version: 1,
   });
 
+  const validateCurrentWorkflow = (): boolean => {
+    const result = validateWorkflow(buildDefinition());
+    if (!result.valid) {
+      messageApi.error(firstValidationMessage(result));
+      return false;
+    }
+    return true;
+  };
+
+  const getCreatedWorkflowId = (created: unknown): number | null => {
+    const payload = created as {id?: number; data?: {id?: number}} | number | null | undefined;
+    if (typeof payload === 'number') return payload;
+    return payload?.data?.id ?? payload?.id ?? null;
+  };
+
   const save = async (): Promise<number | null> => {
     setSaving(true);
     try {
@@ -140,7 +156,7 @@ const RpaBuilder = () => {
         return builder.workflowId;
       }
       const created = await RpaBridge?.create(record);
-      const newId = (created as RPA.WorkflowRecord)?.id ?? (created as number) ?? null;
+      const newId = getCreatedWorkflowId(created);
       dispatch(markSaved(newId ?? undefined));
       messageApi.success(t('rpa_saved'));
       return newId;
@@ -153,6 +169,7 @@ const RpaBuilder = () => {
   };
 
   const openRun = async () => {
+    if (!validateCurrentWorkflow()) return;
     let id = builder.workflowId;
     if (dirty || !id) {
       const savedId = await save();

@@ -11,6 +11,14 @@ import {resolveParams, resolveValue} from '../variables';
  */
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
+const outputKey = (params: Record<string, any>, fallback?: string): string | undefined =>
+  params.output ? String(params.output) : params.varName ? String(params.varName) : fallback;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const inputValue = (params: Record<string, any>): any =>
+  params.input !== undefined ? params.input : params.value;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const compare = (a: any, op: string, b: any): boolean => {
   switch (op) {
     case '==':
@@ -39,11 +47,23 @@ const compare = (a: any, op: string, b: any): boolean => {
 };
 
 registerNode({
+  type: 'start',
+  category: 'logic',
+  execute: async () => undefined,
+});
+
+registerNode({
+  type: 'end',
+  category: 'logic',
+  execute: async () => ({end: true}),
+});
+
+registerNode({
   type: 'if',
   category: 'logic',
   execute: async (node, ctx) => {
-    const {left, operator, right} = resolveParams(node.params, ctx.variables);
-    const result = compare(left, String(operator || '=='), right);
+    const {left, operator, op, right} = resolveParams(node.params, ctx.variables);
+    const result = compare(left, String(operator ?? op ?? '=='), right);
     return {branch: result ? 'true' : 'false'};
   },
 });
@@ -93,9 +113,11 @@ registerNode({
   type: 'jsonParse',
   category: 'data',
   execute: async (node, ctx) => {
-    const {value, varName} = resolveParams(node.params, ctx.variables);
+    const params = resolveParams(node.params, ctx.variables);
+    const value = inputValue(params);
     const parsed = typeof value === 'string' ? JSON.parse(value) : value;
-    if (varName) ctx.variables[String(varName)] = parsed;
+    const key = outputKey(params);
+    if (key) ctx.variables[key] = parsed;
     return {output: parsed};
   },
 });
@@ -104,9 +126,10 @@ registerNode({
   type: 'jsonStringify',
   category: 'data',
   execute: async (node, ctx) => {
-    const {value, varName} = resolveParams(node.params, ctx.variables);
-    const str = JSON.stringify(value);
-    if (varName) ctx.variables[String(varName)] = str;
+    const params = resolveParams(node.params, ctx.variables);
+    const str = JSON.stringify(inputValue(params));
+    const key = outputKey(params);
+    if (key) ctx.variables[key] = str;
     return {output: str};
   },
 });
@@ -115,11 +138,12 @@ registerNode({
   type: 'regex',
   category: 'data',
   execute: async (node, ctx) => {
-    const {input, pattern, flags, varName} = resolveParams(node.params, ctx.variables);
-    const re = new RegExp(String(pattern), String(flags || ''));
-    const match = String(input).match(re);
+    const params = resolveParams(node.params, ctx.variables);
+    const re = new RegExp(String(params.pattern), String(params.flags || ''));
+    const match = String(params.input ?? '').match(re);
     const out = match ? (match[1] ?? match[0]) : null;
-    if (varName) ctx.variables[String(varName)] = out;
+    const key = outputKey(params);
+    if (key) ctx.variables[key] = out;
     return {output: out};
   },
 });
@@ -128,11 +152,12 @@ registerNode({
   type: 'random',
   category: 'data',
   execute: async (node, ctx) => {
-    const {min, max, varName} = resolveParams(node.params, ctx.variables);
-    const lo = Number(min) || 0;
-    const hi = Number(max) || 100;
+    const params = resolveParams(node.params, ctx.variables);
+    const lo = Number(params.min) || 0;
+    const hi = Number(params.max) || 100;
     const out = Math.floor(Math.random() * (hi - lo + 1)) + lo;
-    if (varName) ctx.variables[String(varName)] = out;
+    const key = outputKey(params);
+    if (key) ctx.variables[key] = out;
     return {output: out};
   },
 });
@@ -141,13 +166,14 @@ registerNode({
   type: 'uuid',
   category: 'data',
   execute: async (node, ctx) => {
-    const {varName} = node.params ?? {};
+    const params = node.params ?? {};
     const out = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
       const r = (Math.random() * 16) | 0;
       const v = c === 'x' ? r : (r & 0x3) | 0x8;
       return v.toString(16);
     });
-    if (varName) ctx.variables[String(varName)] = out;
+    const key = outputKey(params);
+    if (key) ctx.variables[key] = out;
     return {output: out};
   },
 });

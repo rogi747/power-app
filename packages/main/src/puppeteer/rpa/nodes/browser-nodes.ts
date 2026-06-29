@@ -1,4 +1,4 @@
-import {registerNode} from '../registry';
+import {registerNode, registerNodeAlias} from '../registry';
 import {resolveParams} from '../variables';
 
 /**
@@ -11,6 +11,10 @@ const num = (v: unknown, fallback: number): number => {
   const n = typeof v === 'number' ? v : parseFloat(String(v));
   return Number.isFinite(n) ? n : fallback;
 };
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const outputKey = (params: Record<string, any>, fallback?: string): string | undefined =>
+  params.output ? String(params.output) : params.varName ? String(params.varName) : fallback;
 
 registerNode({
   type: 'navigate',
@@ -140,13 +144,14 @@ registerNode({
   type: 'screenshot',
   category: 'browser',
   execute: async (node, ctx) => {
-    const {path, fullPage, varName} = resolveParams(node.params, ctx.variables);
+    const params = resolveParams(node.params, ctx.variables);
     const buffer = await ctx.page.screenshot({
-      path: path ? String(path) : undefined,
-      fullPage: !!fullPage,
+      path: params.path ? String(params.path) : undefined,
+      fullPage: !!params.fullPage,
       encoding: 'base64',
     });
-    if (varName) ctx.variables[String(varName)] = buffer;
+    const key = outputKey(params);
+    if (key) ctx.variables[key] = buffer;
   },
 });
 
@@ -154,10 +159,11 @@ registerNode({
   type: 'getText',
   category: 'browser',
   execute: async (node, ctx) => {
-    const {selector, varName} = resolveParams(node.params, ctx.variables);
-    await ctx.page.waitForSelector(String(selector));
-    const text = await ctx.page.$eval(String(selector), el => el.textContent?.trim() ?? '');
-    if (varName) ctx.variables[String(varName)] = text;
+    const params = resolveParams(node.params, ctx.variables);
+    await ctx.page.waitForSelector(String(params.selector));
+    const text = await ctx.page.$eval(String(params.selector), el => el.textContent?.trim() ?? '');
+    const key = outputKey(params);
+    if (key) ctx.variables[key] = text;
     return {output: text};
   },
 });
@@ -166,25 +172,31 @@ registerNode({
   type: 'getAttribute',
   category: 'browser',
   execute: async (node, ctx) => {
-    const {selector, attribute, varName} = resolveParams(node.params, ctx.variables);
+    const params = resolveParams(node.params, ctx.variables);
     const value = await ctx.page.$eval(
-      String(selector),
+      String(params.selector),
       (el, attr) => el.getAttribute(attr as string),
-      String(attribute),
+      String(params.attribute),
     );
-    if (varName) ctx.variables[String(varName)] = value;
+    const key = outputKey(params);
+    if (key) ctx.variables[key] = value;
     return {output: value};
   },
 });
 
 registerNode({
-  type: 'executeJavascript',
+  type: 'executeJS',
   category: 'browser',
   execute: async (node, ctx) => {
-    const {code, varName} = resolveParams(node.params, ctx.variables);
+    const params = resolveParams(node.params, ctx.variables);
     // eslint-disable-next-line no-new-func
-    const result = await ctx.page.evaluate(new Function(`return (${code})`) as never);
-    if (varName) ctx.variables[String(varName)] = result;
+    const result = await ctx.page.evaluate(new Function(`return (${params.code})`) as never);
+    const key = outputKey(params);
+    if (key) ctx.variables[key] = result;
     return {output: result};
   },
 });
+
+// Backward compatibility for workflows created before the UI/runtime contract
+// was aligned around executeJS.
+registerNodeAlias('executeJavascript', 'executeJS');
