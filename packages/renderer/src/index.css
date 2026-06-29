@@ -1,4 +1,4 @@
-/* 全局样式 - 最小化，使用 antd 原生能力 */
+/*Global styles - minimized, using antd native capabilities*/
 @import './styles/page-layout.css';
 
 html {
@@ -20,7 +20,7 @@ body {
   height: 100vh;
 }
 
-/* 滚动条样式 */
+/*Scroll bar style*/
 * {
   scrollbar-width: thin;
   scrollbar-color: #d6dee1 transparent;
@@ -40,7 +40,7 @@ body {
   border-radius: 4px;
 }
 
-/* App 淡入动画 */
+/*App fade-in animation*/
 .fade-in {
   opacity: 0;
   transition: opacity 0.2s ease-in-out;
@@ -50,7 +50,7 @@ body {
   opacity: 1;
 }
 
-/* 拖拽区域 */
+/*drag area*/
 .draggable {
   -webkit-app-region: drag;
 }

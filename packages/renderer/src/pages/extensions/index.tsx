@@ -86,17 +86,17 @@ const Extensions = () => {
 
   const onChange = (list: number[]) => {
     const currentIds = windows.map(w => w.id!);
-    // 保留不在当前视图的选中项
+    //Keep selected items not in current view
     setSelectedWindows(prev => [...prev.filter(id => !currentIds.includes(id)), ...list]);
   };
 
   const onCheckAllChange: CheckboxProps['onChange'] = e => {
     const currentIds = windows.map(w => w.id!);
     if (e.target.checked) {
-      // 当全选时，保留不在当前视图的选中项，并添加当前视图的所有项
+      //When all is selected, retains selected items that are not in the current view and adds all items in the current view
       setSelectedWindows(prev => [...prev.filter(id => !currentIds.includes(id)), ...currentIds]);
     } else {
-      // 当取消全选时，只移除当前视图的选中项
+      //When deselecting all, only the selected items in the current view are removed
       setSelectedWindows(prev => prev.filter(id => !currentIds.includes(id)));
     }
   };
@@ -210,7 +210,7 @@ const Extensions = () => {
     if (value > -1) {
       const filteredWindows = [...windowDataCopy].filter(f => f.group_id === value);
       setWindows(filteredWindows);
-      // 保持已选中但不在当前视图的窗口ID
+      //Keep window IDs selected but not in current view
       setSelectedWindows(prev => {
         const filteredIds = filteredWindows.map(w => w.id!);
         return [
@@ -237,7 +237,7 @@ const Extensions = () => {
           containsKeyword(f.id, keyword),
       );
       setWindows(filteredWindows);
-      // 保持已选中但不在当前视图的窗口ID
+      //Keep window IDs selected but not in current view
       setSelectedWindows(prev => {
         const filteredIds = filteredWindows.map(w => w.id!);
         return [

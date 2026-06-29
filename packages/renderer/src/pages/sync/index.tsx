@@ -406,7 +406,7 @@ const Sync = () => {
       pids,
       offset: cascadeOffset,
       size: {width: cascadeWidth, height: cascadeHeight},
-      startOffset: {x: -8, y: 0}, // 补偿窗口边框
+      startOffset: {x: -8, y: 0}, //Compensate window borders
     });
     saveSyncConfig();
     message.success(t('sync_msg_arranged'));

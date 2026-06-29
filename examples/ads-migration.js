@@ -14,10 +14,10 @@ async function main() {
       const fromDir = path.join(fromPath, window.profile_id + adsDirSuffix, 'Default');
       const toDir = path.join(toPath, window.profile_id, 'Default');
 
-      // 确保目标目录存在
+      //Make sure the target directory exists
       await fs.ensureDir(toDir);
 
-      // 要复制的文件夹列表
+      //List of folders to copy
       const foldersToMove = [
         'Extension Rules',
         'Extension Scripts',
@@ -27,10 +27,10 @@ async function main() {
         'IndexedDB',
       ];
 
-      // 要复制的文件列表
+      //List of files to copy
       const filesToMove = ['Bookmarks', 'Bookmarks.bak', 'History', 'History-journal'];
 
-      // 复制文件夹
+      //copy folder
       for (const folder of foldersToMove) {
         const source = path.join(fromDir, folder);
         const destination = path.join(toDir, folder);
@@ -46,7 +46,7 @@ async function main() {
         }
       }
 
-      // 复制文件
+      //Copy files
       for (const file of filesToMove) {
         const source = path.join(fromDir, file);
         const destination = path.join(toDir, file);

@@ -149,7 +149,7 @@ const ProxyImport = () => {
   }, []);
 
   const parseProxy = (proxy: string, index: number) => {
-    let type = 'HTTP'; // 默认类型
+    let type = 'HTTP'; //Default type
     let host = '',
       port = 0,
       username = '',
@@ -165,14 +165,14 @@ const ProxyImport = () => {
       proxy = proxy.substring(7);
     }
 
-    // 如果存在，提取备注
+    //If it exists, extract the note
     const remarkIndex = proxy.indexOf('{');
     if (remarkIndex !== -1) {
       remark = proxy.substring(remarkIndex + 1, proxy.length - 1);
       proxy = proxy.substring(0, remarkIndex).trim();
     }
 
-    // 调整正则表达式以使用户名和密码可选
+    //Adjust regex to make username and password optional
     const proxyRegex = /^([a-zA-Z0-9.-]+):(\d{1,5})(?::([a-zA-Z0-9._-]*):([a-zA-Z0-9._-]*))?$/;
 
     if (!proxyRegex.test(proxy)) {

@@ -13,7 +13,7 @@ const isDev = import.meta.env.DEV;
 let serverStarted = false;
 let PORT = 5173;
 
-// 仅在生产环境下启动Express服务器
+//Start Express server only in production environment
 async function findAvailablePortAndStartServer() {
   if (!isDev) {
     PORT = await portscanner.findAPortNotInUse(5173, 8000);
@@ -26,32 +26,32 @@ async function findAvailablePortAndStartServer() {
 }
 
 async function createWindow() {
-  // 区分安装版和免安装版的图标路径
-  // 获取图标路径
+  //Distinguish the icon path between the installation version and the installation-free version
+  //Get icon path
   const getIconPath = () => {
     if (app.isPackaged) {
       const paths = [
-        // 安装版路径
+        //Installation path
         join(app.getPath('exe'), '..', 'resources', 'buildResources', 'icon.ico'),
-        // 备选路径
+        //alternative path
         join(process.resourcesPath, 'buildResources', 'icon.ico'),
         join(app.getAppPath(), 'buildResources', 'icon.ico'),
       ];
 
-      // 使用第一个存在的图标路径
+      //Use the first existing icon path
       for (const path of paths) {
         if (existsSync(path)) {
           return path;
         }
       }
     }
-    // 开发环境路径
+    //Development environment path
     return join(process.cwd(), 'buildResources', 'icon.ico');
   };
 
   const iconPath = getIconPath();
 
-  // 确保图标文件存在
+  //Make sure the icon file exists
   if (!existsSync(iconPath)) {
     logger.error('Icon file not found:', iconPath);
   }
@@ -78,17 +78,17 @@ async function createWindow() {
   });
 
   if (process.platform === 'win32') {
-    // 设置任务栏图标
+    //Set taskbar icon
     browserWindow.setIcon(icon);
-    // 设置应用 ID，这对任务栏图标很重要
-    // 设置应用 ID
+    //Set the app ID, this is important for the taskbar icon
+    //Set app ID
     const appId = app.isPackaged ? 'com.chromepower.app' : process.execPath;
     app.setAppUserModelId(appId);
 
     browserWindow.setThumbarButtons([]);
   }
 
-  // macOS 特定设置
+  //macOS specific settings
   if (process.platform === 'darwin') {
     app.dock.setIcon(icon);
   }
@@ -150,7 +150,7 @@ async function createWindow() {
      */
     await browserWindow.loadURL(import.meta.env.VITE_DEV_SERVER_URL);
   } else if (serverStarted) {
-    await browserWindow.loadURL(`http://localhost:${PORT}/index.html`); // 确保端口号与你的服务器端口匹配
+    await browserWindow.loadURL(`http://localhost:${PORT}/index.html`); // Make sure the port number matches your server port
   } else {
     await browserWindow.loadFile(resolve(__dirname, '../../renderer/dist/index.html'));
   }

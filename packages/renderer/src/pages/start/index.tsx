@@ -117,7 +117,7 @@ export default function Start() {
           </div>
         }
       >
-        {/* 窗口信息 */}
+        {/*window information*/}
         <div className="mb-6">
           <Title
             level={5}
@@ -160,7 +160,7 @@ export default function Start() {
           </Descriptions>
         </div>
 
-        {/* 更多信息 */}
+        {/*More information*/}
         <div>
           <Title
             level={5}

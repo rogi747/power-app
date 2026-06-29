@@ -75,7 +75,7 @@ const find = async (params: DB.Window) => {
 };
 
 const getById = async (id: number) => {
-  // 获取 window 记录及其关联数据
+  //Get window records and their associated data
   const windowData = await db('window')
     .select(
       'window.*',
@@ -92,13 +92,13 @@ const getById = async (id: number) => {
     .first();
 
   if (windowData.tags) {
-    // 分割 tags 字符串
+    //Split tags string
     const tagIds = windowData.tags.toString().split(',').map(Number);
 
-    // 获取所有相关的标签名称
+    //Get all related tag names
     const tags = await db('tag').select('name').whereIn('id', tagIds);
 
-    // 将标签名称添加到返回结果中
+    //Add tag name to returned results
     windowData.tags_name = tags.map(tag => tag.name);
   }
 
@@ -106,7 +106,7 @@ const getById = async (id: number) => {
 };
 
 const getByPid = async (pid: number) => {
-  // 获取 window 记录及其关联数据 by PID
+  //Get window records and their associated data by PID
   const windowData = await db('window')
     .select(
       'window.*',
@@ -123,13 +123,13 @@ const getByPid = async (pid: number) => {
     .first();
 
   if (windowData && windowData.tags) {
-    // 分割 tags 字符串
+    //Split tags string
     const tagIds = windowData.tags.toString().split(',').map(Number);
 
-    // 获取所有相关的标签名称
+    //Get all related tag names
     const tags = await db('tag').select('name').whereIn('id', tagIds);
 
-    // 将标签名称添加到返回结果中
+    //Add tag name to returned results
     windowData.tags_name = tags.map(tag => tag.name);
   }
 
@@ -173,7 +173,7 @@ const create = async (windowData: DB.Window, fingerprint?: SafeAny) => {
   }
   if (!windowData.profile_id) {
     windowData.profile_id = randomUniqueProfileId();
-    // 确保 profile_id 是唯一的
+    //Make sure profile_id is unique
     while (await db('window').where({profile_id: windowData.profile_id}).first()) {
       windowData.profile_id = randomUniqueProfileId();
     }
@@ -188,12 +188,12 @@ const create = async (windowData: DB.Window, fingerprint?: SafeAny) => {
   //   windowData.fingerprint = JSON.stringify(randFingerprint);
   // }
 
-  // 如果没有选择使用本地 Chrome，则将 chromiumBinPath 设为 null，使用全局设置
+  //If there is no option to use local Chrome, set chromiumBinPath to null and use the global setting
   if (!windowData.useLocalChrome) {
     windowData.chromiumBinPath = null;
   }
 
-  // 使用 UTC ISO 字符串存储 created_at，确保时区一致
+  //Store created_at using UTC ISO string to ensure consistent time zone
   const insertData = {
     ...windowData,
     created_at: new Date().toISOString(),

@@ -8,10 +8,10 @@ export function getDbPath() {
     if (app.isPackaged) {
       dbPath = join(app.getPath('userData'), 'db.sqlite3');
     } else {
-      dbPath = join(app.getPath('userData'), 'dev-db.sqlite3'); // 您原先的数据库位置
+      dbPath = join(app.getPath('userData'), 'dev-db.sqlite3'); //Your original database location
     }
   } catch {
-    // 默认的开发数据库位置，或其他你选择的位置
+    //The default development database location, or another location of your choice
     dbPath = join(__dirname, 'dev-db.sqlite3');
   }
 

@@ -12,11 +12,11 @@ export function createLogger(label: string) {
     const transports: winston.transport[] = [];
 
     if (isDevelopment) {
-      // 开发环境: 同时输出到控制台和文件
+      //Development environment: Output to console and file simultaneously
       transports.push(new winston.transports.Console({level: 'debug'}));
     }
 
-    // 文件输出（开发和生产环境都有）
+    //File output (both development and production environments)
     const logsPath = join(app.getPath('userData'), 'logs');
     if (!existsSync(logsPath)) {
       mkdirSync(logsPath, {recursive: true});
@@ -33,9 +33,9 @@ export function createLogger(label: string) {
     const formattedDate = `${year}-${month.toString().padStart(2, '0')}-${day
       .toString()
       .padStart(2, '0')}`;
-    // 定义日志文件的位置，每天记录一个日志文件
+    //Define the location of the log file and record a log file every day
     const logFile = join(logsPath, label, `${formattedDate}.log`);
-    // 生产环境: 所有日志都输出到文件
+    //Production environment: all logs are output to files
     transports.push(new winston.transports.File({level: 'info', filename: logFile}));
 
     winston.loggers.add(label, {

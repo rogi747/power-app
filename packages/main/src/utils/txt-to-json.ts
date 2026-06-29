@@ -1,7 +1,7 @@
 import type {IWindowTemplate} from '../types/window-template';
 
 export function txtToJSON(txt: string): IWindowTemplate[] {
-  const entries = txt.split('\n\n'); // 根据两个换行符来分割每一块数据
+  const entries = txt.split('\n\n'); //Split each piece of data based on two newline characters
   const jsonOutput = [];
   for (const entry of entries) {
     const lines = entry.split('\n');

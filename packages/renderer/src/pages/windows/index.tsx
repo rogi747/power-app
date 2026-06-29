@@ -263,12 +263,12 @@ const Windows = () => {
   const filteredData = useMemo(() => {
     let filtered = [...rawWindowData];
 
-    // 按组过滤
+    //Filter by group
     if (group > -1) {
       filtered = filtered.filter(item => item.group_id === group);
     }
 
-    // 按搜索关键词过滤
+    //Filter by search keywords
     if (searchValue) {
       const keyword = searchValue.toLowerCase();
       filtered = filtered.filter(
@@ -293,7 +293,7 @@ const Windows = () => {
   }, [rawWindowData, group, searchValue, tagMap]);
 
   const windowData = useMemo(() => {
-    // 分页
+    //Pagination
     const startIndex = (currentPage - 1) * pageSize;
     return filteredData.slice(startIndex, startIndex + pageSize);
   }, [filteredData, currentPage, pageSize]);
@@ -355,7 +355,7 @@ const Windows = () => {
 
   const exportWindows = async () => {
     try {
-      // 导出窗口数据
+      //Export window data
       const data = windowData.map(item => {
         return {
           ...item,
@@ -366,7 +366,7 @@ const Windows = () => {
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('Windows');
 
-      // 添加表头
+      //Add header
       worksheet.addRow([
         'ID',
         'Profile ID',
@@ -379,7 +379,7 @@ const Windows = () => {
         'Created At',
       ]);
 
-      // 添加数据
+      //Add data
       data.forEach(item => {
         worksheet.addRow([
           item.id,
@@ -410,15 +410,15 @@ const Windows = () => {
         ]);
       });
 
-      // 调整列宽
+      //Adjust column width
       worksheet.columns.forEach(column => {
         column.width = 20;
       });
 
-      // 生成 buffer
+      //Generate buffer
       const buffer = await workbook.xlsx.writeBuffer();
 
-      // 调用主进程的保存对话框
+      //Call the save dialog of the main process
       const result = await CommonBridge?.saveDialog({
         title: 'Save Windows Data',
         defaultPath: 'windows.xlsx',
@@ -426,7 +426,7 @@ const Windows = () => {
       });
 
       if (result.filePath) {
-        // 将 buffer 写入文件
+        //Write buffer to file
         await CommonBridge?.saveFile(result.filePath, buffer);
         messageApi.success('Export successfully');
       }
@@ -669,7 +669,7 @@ const Windows = () => {
           onRow={record => ({
             onDoubleClick: async () => {
               if (record.status === 2 && record.id) {
-                // 窗口正在运行，双击找到并聚焦
+                //The window is running, double-click to find and focus
                 await WindowBridge.focus(record.id);
               }
             },

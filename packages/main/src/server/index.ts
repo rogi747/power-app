@@ -8,7 +8,7 @@ import ProfilesRouter from './routes/profiles';
 import ProxyRouter from './routes/proxy';
 
 const app: Express = express();
-let port: number = 49156; // 初始端口
+let port: number = 49156; //initial port
 
 app.use(cors());
 app.use(express.json());
@@ -25,7 +25,7 @@ app.get('/status', async (req, res) => {
   });
 });
 
-// 添加全局错误处理
+//Add global error handling
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Express error:', err);
   if (!res.headersSent) {
@@ -34,7 +34,7 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
   next(err);
 });
 
-// 处理未捕获的 Promise 拒绝
+//Handling uncaught Promise rejections
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
@@ -64,10 +64,10 @@ export const getPort = () => port;
 
 export const getOrigin = () => `http://localhost:${port}`;
 
-// ... 其他的 Express 配置和路由 ...
+//... Additional Express Configuration and Routing ...
 
 export function createServer() {
   // ... existing code ...
-  // 移除任何使用 getNativeAddon 的代码
+  //Remove any code that uses getNativeAddon
   // ... existing code ...
 }

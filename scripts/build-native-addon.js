@@ -1,38 +1,38 @@
 #!/usr/bin/env node
 
 /**
- * 根据平台和架构构建原生模块并组织输出文件
- * 这个脚本将：
- * 1. 确定当前操作系统和架构
- * 2. 执行适当的构建命令
- * 3. 创建特定于平台/架构的目录
- * 4. 将构建好的模块移动到对应目录
+* Build native modules and organize output files according to platform and architecture
+* This script will:
+* 1. Determine the current operating system and architecture
+* 2. Execute the appropriate build command
+* 3. Create platform/architecture specific directories
+* 4. Move the built module to the corresponding directory
  */
 
 const {execSync} = require('child_process');
 const path = require('path');
 const dotenv = require('dotenv');
 
-// 加载环境变量
+//Load environment variables
 dotenv.config();
 
-// 获取平台和架构信息
+//Get platform and architecture information
 const platform = process.env.ELECTRON_PLATFORM || process.platform;
 const arch = process.env.ELECTRON_ARCH || process.arch;
 
 console.log(`构建原生模块 (平台: ${platform}, 架构: ${arch})`);
 
-// 原生模块目录
+//Native module directory
 const nativeAddonDir = path.join(__dirname, '../packages/main/src/native-addon');
 const buildDir = path.join(nativeAddonDir, 'build');
 const releaseDir = path.join(buildDir, 'Release');
 
-// 创建特定于平台和架构的目标目录路径
+//Create platform- and architecture-specific target directory paths
 const targetDir = path.join(releaseDir, `${platform}-${arch}`);
 const sourcePath = path.join(releaseDir, 'window-addon.node');
 
 try {
-  // 检查是否已经存在构建好的文件
+  //Check if the built file already exists
   const fs = require('fs');
   const targetAddonPath = path.join(targetDir, 'window-addon.node');
 
@@ -42,13 +42,13 @@ try {
     process.exit(0);
   }
 
-  // 根据不同平台和架构执行不同的构建命令
+  //Execute different build commands according to different platforms and architectures
   console.log(`开始为 ${platform}-${arch} 构建原生模块...`);
 
   try {
     if (platform === 'win32') {
       console.log('在 Windows 平台构建原生模块...');
-      // 显式指定 msvs_version
+      //Explicitly specify msvs_version
       execSync('npm run build:native-addon -- --msvs_version=2022', {stdio: 'inherit'});
     } else if (platform === 'darwin') {
       if (arch === 'arm64') {
@@ -62,7 +62,7 @@ try {
         execSync('npm run build:native-addon', {stdio: 'inherit'});
       }
     } else {
-      // 其他平台的处理
+      //Processing on other platforms
       console.log(`在 ${platform} 平台构建原生模块...`);
       execSync('npm run build:native-addon', {stdio: 'inherit'});
     }
@@ -77,7 +77,7 @@ try {
 
   console.log('构建命令执行完成，检查输出文件...');
 
-  // 使用命令行列出目录内容
+  //List directory contents using the command line
   if (platform === 'win32') {
     execSync(`dir "${buildDir}"`, {stdio: 'inherit'});
     execSync(`dir "${releaseDir}"`, {stdio: 'inherit'});
@@ -86,7 +86,7 @@ try {
     execSync(`ls -la "${releaseDir}"`, {stdio: 'inherit'});
   }
 
-  // 使用命令行创建目录和复制文件
+  //Create directories and copy files using the command line
   console.log('创建目标目录并复制文件...');
   if (platform === 'win32') {
     execSync(`mkdir "${targetDir}" 2>nul || echo "Directory already exists"`, {stdio: 'inherit'});
@@ -96,7 +96,7 @@ try {
     execSync(`cp "${sourcePath}" "${targetDir}/window-addon.node"`, {stdio: 'inherit'});
   }
 
-  // 验证文件已复制
+  //Verify file copied
   console.log('验证文件已复制...');
   if (platform === 'win32') {
     execSync(`dir "${targetDir}"`, {stdio: 'inherit'});

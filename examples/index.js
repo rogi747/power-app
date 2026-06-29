@@ -5,7 +5,7 @@ import {openProfile} from './demo/profiles.js';
 
 async function main() {
   try {
-    // 批量创建窗口
+    //Create windows in batches
     const windowsToCreate = [{name: '窗口1'}, {name: '窗口2'}, {name: '窗口3'}];
 
     console.log('开始创建窗口...');

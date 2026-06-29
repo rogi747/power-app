@@ -38,7 +38,7 @@ module.exports = async function () {
       'node_modules/@tkomde/iohook/**/*.node',
       'node_modules/iconv-corefoundation/lib/*.node',
       'buildResources/**/*',
-      '!**/*.map', // 排除调试文件
+      '!**/*.map', // exclude debug files
       '!**/*.ts',
       '!**/*.tsx',
     ],
@@ -64,7 +64,7 @@ module.exports = async function () {
     asar: true,
     asarUnpack: '**/*.{node,dll}',
 
-    // Windows 配置
+    //Windows configuration
     win: {
       icon: 'buildResources/icon.ico',
       target: [
@@ -75,7 +75,7 @@ module.exports = async function () {
       ],
       artifactName: '${productName}-${version}-${arch}-${os}-' + getBuildTime() + '.${ext}',
       signAndEditExecutable: false,
-      compression: 'maximum', // 最大压缩（安装包会更小，但打包时间更长）
+      compression: 'maximum', //Maximum compression (the installation package will be smaller, but the packaging time will be longer)
     },
     nsis: {
       oneClick: false,
@@ -91,7 +91,7 @@ module.exports = async function () {
       artifactName: '${productName}-${version}-${arch}-${os}-' + getBuildTime() + '.${ext}',
     },
 
-    // macOS 配置
+    //macOS configuration
     mac: {
       timestamp: false,
       icon: 'buildResources/icon.icns',
@@ -119,32 +119,32 @@ module.exports = async function () {
       format: 'ULFO',
     },
 
-    // 添加 GitHub 发布配置
+    //Add GitHub release configuration
     publish: {
       provider: 'github',
       private: false,
       releaseType: 'draft',
     },
 
-    // 在打包后复制 window-addon.node 到最终目录
+    //Copy window-addon.node to the final directory after packaging
     afterPack: async context => {
       const fs = require('fs');
       const path = require('path');
       const {electronPlatformName, arch, appOutDir} = context;
 
-      // electron-builder 的 arch 是数字枚举，需要转换为字符串
+      //The arch of electron-builder is a numeric enumeration and needs to be converted to a string
       const archMap = {0: 'ia32', 1: 'x64', 2: 'armv7l', 3: 'arm64', 4: 'universal'};
       const archString = archMap[arch] || String(arch);
 
       console.log(`Copying window-addon for ${electronPlatformName}-${archString}...`);
 
-      // native addon 编译产物按平台/架构放在子目录下
+      //Native addon compiled products are placed in subdirectories according to platform/architecture
       const sourcePath = path.join(
         __dirname,
         `packages/main/src/native-addon/build/Release/${electronPlatformName}-${archString}/window-addon.node`,
       );
 
-      // Mac 应用有 .app 包结构，需要特殊处理路径
+      //Mac apps have a .app package structure and require special handling of paths
       let targetDir;
       if (electronPlatformName === 'darwin') {
         const appName = context.packager.appInfo.productFilename;
@@ -158,20 +158,20 @@ module.exports = async function () {
       const targetPath = path.join(targetDir, 'window-addon.node');
 
       try {
-        // 检查源文件是否存在
+        //Check if the source file exists
         if (!fs.existsSync(sourcePath)) {
           console.error(`Source file not found: ${sourcePath}`);
           console.error('Please run npm run build:native-addon first');
           throw new Error('window-addon.node not found');
         }
 
-        // 创建目标目录
+        //Create target directory
         if (!fs.existsSync(targetDir)) {
           fs.mkdirSync(targetDir, {recursive: true});
           console.log(`Created directory: ${targetDir}`);
         }
 
-        // 复制文件
+        //Copy files
         fs.copyFileSync(sourcePath, targetPath);
         console.log(`Successfully copied window-addon.node to ${targetPath}`);
       } catch (error) {

@@ -29,12 +29,12 @@ export async function createShortcutWithIcon(
   try {
     const shortcutDir = path.dirname(shortcutPath);
 
-    // 确保目录存在
+    //Make sure the directory exists
     if (!fs.existsSync(shortcutDir)) {
       fs.mkdirSync(shortcutDir, {recursive: true});
     }
 
-    // PowerShell 脚本创建快捷方式
+    //PowerShell script to create shortcuts
     const escapedArgs = args.map(arg => arg.replace(/"/g, '`"')).join(' ');
     const psScript = `
       $WshShell = New-Object -ComObject WScript.Shell
@@ -44,14 +44,14 @@ export async function createShortcutWithIcon(
       $Shortcut.IconLocation = "${iconPath.replace(/\\/g, '\\\\')}"
       $Shortcut.WorkingDirectory = "${path.dirname(exePath).replace(/\\/g, '\\\\')}"
       
-      # 添加这行来设置快捷方式为管理员权限运行
+      #Add this line to set the shortcut to run with administrator privileges
       $bytes = [System.IO.File]::ReadAllBytes("${shortcutPath.replace(/\\/g, '\\\\')}")
-      $bytes[0x15] = $bytes[0x15] -bor 0x20 # 设置管理员权限标志
+      $bytes[0x15] = $bytes[0x15] -bor 0x20 #Set administrator permission flag
       [System.IO.File]::WriteAllBytes("${shortcutPath.replace(/\\/g, '\\\\')}", $bytes)
       
       $Shortcut.Save()
       
-      # 验证文件是否创建成功
+      #Verify that the file was created successfully
       if (Test-Path "${shortcutPath.replace(/\\/g, '\\\\')}") {
         Write-Output "快捷方式创建成功"
       } else {
@@ -60,7 +60,7 @@ export async function createShortcutWithIcon(
       }
     `;
     console.log(psScript);
-    // 将脚本写入临时文件以避免命令行长度限制
+    //Write script to temporary file to avoid command line length limit
     const tempScriptPath = path.join(os.tmpdir(), `create_shortcut_${Date.now()}.ps1`);
     fs.writeFileSync(tempScriptPath, psScript);
 
@@ -68,11 +68,11 @@ export async function createShortcutWithIcon(
       exec(
         `powershell -ExecutionPolicy Bypass -File "${tempScriptPath}"`,
         (error, stdout, stderr) => {
-          // 清理临时脚本文件
+          //Clean temporary script files
           try {
             fs.unlinkSync(tempScriptPath);
           } catch (e) {
-            /* 忽略删除失败 */
+            /*Ignore deletion failures*/
           }
 
           if (error) {
