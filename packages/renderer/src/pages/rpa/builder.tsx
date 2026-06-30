@@ -3,6 +3,7 @@ import {useDispatch, useSelector} from 'react-redux';
 import {useNavigate, useSearchParams} from 'react-router-dom';
 import {useTranslation} from 'react-i18next';
 import {
+  Alert,
   Button,
   Collapse,
   Drawer,
@@ -22,24 +23,40 @@ import {
 import {Icon} from '@iconify/react';
 import {
   ArrowLeftOutlined,
+  CopyOutlined,
+  DeleteOutlined,
+  ExclamationCircleOutlined,
+  ImportOutlined,
   PlayCircleOutlined,
+  RedoOutlined,
   SaveOutlined,
   SettingOutlined,
-  DeleteOutlined,
+  SnippetsOutlined,
+  StopOutlined,
+  UndoOutlined,
   PlusOutlined,
+  VideoCameraOutlined,
 } from '@ant-design/icons';
 import {RpaBridge, WindowBridge} from '#preload';
 import type {RootState, AppDispatch} from '/@/store';
 import {
   addNode,
+  appendGraph,
+  copySelectedNode,
+  deleteSelectedNode,
+  duplicateSelectedNode,
   loadWorkflow,
   markSaved,
   newWorkflow,
   setDescription,
+  pasteNode,
+  redo,
+  selectNode,
   setName,
   setRunning,
   setSettings,
   setVariables,
+  undo,
 } from '/@/store/rpa-builder-slice';
 import {
   NODE_CATALOG,
@@ -53,6 +70,7 @@ import type {RPA} from '../../../../shared/types/rpa';
 import type {DB} from '../../../../shared/types/db';
 import {MESSAGE_CONFIG} from '/@/constants';
 import {firstValidationMessage, validateWorkflow} from '../../../../shared/rpa/validator';
+import type {RpaValidationIssue} from '../../../../shared/rpa/validator';
 
 const {Text} = Typography;
 
@@ -70,7 +88,29 @@ const RpaBuilder = () => {
   const [messageApi, contextHolder] = message.useMessage(MESSAGE_CONFIG);
 
   const builder = useSelector((s: RootState) => s.rpaBuilder);
-  const {name, description, dirty, running, variables, settings, nodes, edges} = builder;
+  const {
+    name,
+    description,
+    dirty,
+    running,
+    variables,
+    settings,
+    nodes,
+    edges,
+    selectedNodeId,
+    selectedNodeIds,
+    historyPast,
+    historyFuture,
+    clipboardNode,
+    clipboardNodes,
+  } = builder;
+  const selectedNode = nodes.find(node => node.id === selectedNodeId);
+  const selectedEditableCount = selectedNodeIds.filter(id => {
+    const node = nodes.find(n => n.id === id);
+    return node && node.type !== 'start';
+  }).length;
+  const canEditSelectedNode = selectedEditableCount > 0;
+  const clipboardCount = clipboardNodes?.nodes.length ?? (clipboardNode ? 1 : 0);
 
   const [saving, setSaving] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -80,6 +120,13 @@ const RpaBuilder = () => {
   const [runOpen, setRunOpen] = useState(false);
   const [windows, setWindows] = useState<DB.Window[]>([]);
   const [selectedWindowIds, setSelectedWindowIds] = useState<number[]>([]);
+
+  // Recorder drawer state.
+  const [recorderOpen, setRecorderOpen] = useState(false);
+  const [recorderWindowId, setRecorderWindowId] = useState<number | undefined>();
+  const [recorderSession, setRecorderSession] = useState<RPA.RecorderSession | null>(null);
+  const [recorderEvents, setRecorderEvents] = useState<RPA.RecorderEvent[]>([]);
+  const [recorderBusy, setRecorderBusy] = useState(false);
 
   // Load workflow on mount (or start a fresh one).
   useEffect(() => {
@@ -102,6 +149,56 @@ const RpaBuilder = () => {
     });
     return grouped;
   }, []);
+
+  const isTextInputActive = () => {
+    const el = document.activeElement as HTMLElement | null;
+    if (!el) return false;
+    const tag = el.tagName.toLowerCase();
+    return tag === 'input' || tag === 'textarea' || el.isContentEditable;
+  };
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase();
+      const modifier = event.ctrlKey || event.metaKey;
+
+      if (modifier && key === 'z' && !event.shiftKey) {
+        event.preventDefault();
+        dispatch(undo());
+        return;
+      }
+      if (modifier && (key === 'y' || (key === 'z' && event.shiftKey))) {
+        event.preventDefault();
+        dispatch(redo());
+        return;
+      }
+
+      if (isTextInputActive()) return;
+
+      if (modifier && key === 'c') {
+        event.preventDefault();
+        dispatch(copySelectedNode());
+        return;
+      }
+      if (modifier && key === 'v') {
+        event.preventDefault();
+        dispatch(pasteNode());
+        return;
+      }
+      if (modifier && key === 'd') {
+        event.preventDefault();
+        dispatch(duplicateSelectedNode());
+        return;
+      }
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        event.preventDefault();
+        dispatch(deleteSelectedNode());
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [dispatch]);
 
   const addNodeToCanvas = (spec: NodeSpec) => {
     const defaults: Record<string, unknown> = {};
@@ -126,8 +223,21 @@ const RpaBuilder = () => {
     version: 1,
   });
 
+  const validationResult = useMemo(
+    () => validateWorkflow(buildDefinition()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [nodes, edges, variables, settings],
+  );
+
+  const validationErrors = validationResult.issues.filter(i => i.level === 'error');
+  const validationWarnings = validationResult.issues.filter(i => i.level === 'warning');
+
+  const focusValidationIssue = (issue: RpaValidationIssue) => {
+    if (issue.nodeId) dispatch(selectNode(issue.nodeId));
+  };
+
   const validateCurrentWorkflow = (): boolean => {
-    const result = validateWorkflow(buildDefinition());
+    const result = validationResult;
     if (!result.valid) {
       messageApi.error(firstValidationMessage(result));
       return false;
@@ -219,6 +329,152 @@ const RpaBuilder = () => {
     }
   };
 
+  useEffect(() => {
+    if (!recorderSession) return;
+    const unsubscribe = RpaBridge?.onRecorderEvent((event: RPA.RecorderEvent) => {
+      setRecorderEvents(prev => {
+        const index = prev.findIndex(item => item.id === event.id);
+        if (index >= 0) {
+          const next = [...prev];
+          next[index] = event;
+          return next;
+        }
+        return [...prev, event];
+      });
+    });
+    return () => {
+      unsubscribe?.();
+    };
+  }, [recorderSession]);
+
+  const openRecorder = async () => {
+    setRecorderOpen(true);
+    const list = (await WindowBridge?.getAll()) ?? [];
+    setWindows(list);
+    if (!recorderWindowId && list[0]?.id) setRecorderWindowId(list[0].id);
+  };
+
+  const startRecorder = async () => {
+    if (!recorderWindowId) {
+      messageApi.error('Please select a profile/window to record.');
+      return;
+    }
+    setRecorderBusy(true);
+    try {
+      setRecorderEvents([]);
+      const session = await RpaBridge?.startRecorder(recorderWindowId);
+      if (session) {
+        setRecorderSession(session);
+        messageApi.success('Recorder started. Use the opened browser profile normally.');
+      }
+    } catch (error) {
+      messageApi.error('Failed to start recorder.');
+    } finally {
+      setRecorderBusy(false);
+    }
+  };
+
+  const stopRecorder = async () => {
+    if (!recorderSession) return;
+    setRecorderBusy(true);
+    try {
+      const res = await RpaBridge?.stopRecorder(recorderSession.id);
+      if (res?.events) setRecorderEvents(res.events);
+      setRecorderSession(null);
+      messageApi.success('Recorder stopped.');
+    } catch (error) {
+      messageApi.error('Failed to stop recorder.');
+    } finally {
+      setRecorderBusy(false);
+    }
+  };
+
+  const eventToNode = (event: RPA.RecorderEvent, index: number, x: number, y: number): RPA.Node | null => {
+    const id = `n_rec_${event.type}_${Date.now()}_${index}`;
+    const labelBase = event.selector || event.text || event.url;
+    const label = `${event.type}: ${String(labelBase ?? '').slice(0, 36)}`;
+    const position = {x, y};
+
+    if (event.type === 'navigation') {
+      if (!event.url || event.url === 'about:blank') return null;
+      return {
+        id,
+        type: 'navigate',
+        label,
+        position,
+        params: {url: event.url, waitUntil: 'networkidle2'},
+      };
+    }
+
+    if ((event.type === 'input' || event.type === 'change') && event.selector) {
+      return {
+        id,
+        type: 'type',
+        label,
+        position,
+        params: {selector: event.selector, text: event.value ?? '', clear: true, delay: 0},
+      };
+    }
+
+    if (event.type === 'click' && event.selector) {
+      return {
+        id,
+        type: 'click',
+        label,
+        position,
+        params: {selector: event.selector},
+      };
+    }
+
+    if (event.type === 'submit') {
+      return {
+        id,
+        type: 'keyboardPress',
+        label: 'submit: Enter',
+        position,
+        params: {key: 'Enter'},
+      };
+    }
+
+    return null;
+  };
+
+  const importRecorderEvents = () => {
+    const maxX = nodes.length ? Math.max(...nodes.map(node => node.position.x + 260)) : 320;
+    const minY = nodes.length ? Math.min(...nodes.map(node => node.position.y)) : 120;
+    const generated: RPA.Node[] = [];
+    const edgesToAdd: RPA.Edge[] = [];
+    let previousId: string | null = selectedNodeId;
+    let lastNavUrl = '';
+
+    recorderEvents.forEach(event => {
+      if (event.type === 'navigation') {
+        if (event.url === lastNavUrl) return;
+        lastNavUrl = event.url;
+      }
+      const node = eventToNode(event, generated.length, maxX, minY + generated.length * 110);
+      if (!node) return;
+      generated.push(node);
+      if (previousId && previousId !== node.id) {
+        edgesToAdd.push({
+          id: `e_${previousId}_${node.id}_${Date.now()}_${generated.length}`,
+          source: previousId,
+          target: node.id,
+          sourceHandle: 'default',
+        });
+      }
+      previousId = node.id;
+    });
+
+    if (generated.length === 0) {
+      messageApi.warning('No recorder events can be converted to nodes.');
+      return;
+    }
+
+    dispatch(appendGraph({nodes: generated, edges: edgesToAdd}));
+    messageApi.success(`Imported ${generated.length} recorded step${generated.length > 1 ? 's' : ''}.`);
+  };
+
   // ---- Variable editor -----------------------------------------------------
   const addVariable = () => {
     dispatch(
@@ -254,8 +510,67 @@ const RpaBuilder = () => {
           />
           {dirty && <Tag color="orange">{t('rpa_unsaved')}</Tag>}
           {!dirty && builder.workflowId && <Tag color="green">{t('rpa_all_saved')}</Tag>}
+          {validationErrors.length > 0 && (
+            <Tag color="red" icon={<ExclamationCircleOutlined />}>
+              {validationErrors.length} error{validationErrors.length > 1 ? 's' : ''}
+            </Tag>
+          )}
+          {validationErrors.length === 0 && validationWarnings.length > 0 && (
+            <Tag color="gold" icon={<ExclamationCircleOutlined />}>
+              {validationWarnings.length} warning{validationWarnings.length > 1 ? 's' : ''}
+            </Tag>
+          )}
+          {selectedNodeIds.length > 1 && <Tag color="blue">{selectedNodeIds.length} selected</Tag>}
         </Space>
         <Space size={8}>
+          <Tooltip title="Undo (Ctrl+Z)">
+            <Button
+              icon={<UndoOutlined />}
+              disabled={historyPast.length === 0}
+              onClick={() => dispatch(undo())}
+            />
+          </Tooltip>
+          <Tooltip title="Redo (Ctrl+Y)">
+            <Button
+              icon={<RedoOutlined />}
+              disabled={historyFuture.length === 0}
+              onClick={() => dispatch(redo())}
+            />
+          </Tooltip>
+          <Tooltip title={`Copy ${selectedEditableCount || 'node'} (Ctrl+C)`}>
+            <Button
+              icon={<CopyOutlined />}
+              disabled={!canEditSelectedNode}
+              onClick={() => dispatch(copySelectedNode())}
+            />
+          </Tooltip>
+          <Tooltip title={`Paste ${clipboardCount || 'node'} (Ctrl+V)`}>
+            <Button
+              icon={<SnippetsOutlined />}
+              disabled={clipboardCount === 0}
+              onClick={() => dispatch(pasteNode())}
+            />
+          </Tooltip>
+          <Tooltip title={`Duplicate ${selectedEditableCount || 'node'} (Ctrl+D)`}>
+            <Button
+              icon={<Icon icon="mdi:content-duplicate" />}
+              disabled={!canEditSelectedNode}
+              onClick={() => dispatch(duplicateSelectedNode())}
+            />
+          </Tooltip>
+          <Tooltip title={`Delete ${selectedEditableCount || 'node'} (Delete)`}>
+            <Button
+              danger
+              icon={<DeleteOutlined />}
+              disabled={!canEditSelectedNode}
+              onClick={() => dispatch(deleteSelectedNode())}
+            />
+          </Tooltip>
+          <Tooltip title="Record browser actions">
+            <Button icon={<VideoCameraOutlined />} onClick={openRecorder}>
+              Recorder
+            </Button>
+          </Tooltip>
           <Tooltip title={t('rpa_variables')}>
             <Button icon={<Icon icon="mdi:variable" />} onClick={() => setVarsOpen(true)}>
               {t('rpa_variables')}
@@ -330,8 +645,43 @@ const RpaBuilder = () => {
         </div>
 
         {/* Canvas */}
-        <div style={{flex: 1, minWidth: 0}}>
-          <FlowCanvas />
+        <div style={{flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column'}}>
+          {validationResult.issues.length > 0 && (
+            <div style={{padding: '8px 12px', borderBottom: '1px solid #eef0f3', background: '#fff'}}>
+              <Alert
+                type={validationErrors.length > 0 ? 'error' : 'warning'}
+                showIcon
+                message={
+                  <Flex align="center" justify="space-between" gap={12}>
+                    <span>
+                      {validationErrors.length > 0
+                        ? `${validationErrors.length} validation error${validationErrors.length > 1 ? 's' : ''}`
+                        : `${validationWarnings.length} validation warning${validationWarnings.length > 1 ? 's' : ''}`}
+                    </span>
+                    <Space size={6} wrap>
+                      {validationResult.issues.slice(0, 5).map((issue, index) => (
+                        <Tag
+                          key={`${issue.nodeId ?? issue.edgeId ?? 'workflow'}_${index}`}
+                          color={issue.level === 'error' ? 'red' : 'gold'}
+                          style={{cursor: issue.nodeId ? 'pointer' : 'default', marginInlineEnd: 0}}
+                          onClick={() => focusValidationIssue(issue)}
+                        >
+                          {issue.nodeId ? `${issue.nodeId}: ` : ''}
+                          {issue.message}
+                        </Tag>
+                      ))}
+                      {validationResult.issues.length > 5 && (
+                        <Tag color="default">+{validationResult.issues.length - 5} more</Tag>
+                      )}
+                    </Space>
+                  </Flex>
+                }
+              />
+            </div>
+          )}
+          <div style={{flex: 1, minHeight: 0}}>
+            <FlowCanvas />
+          </div>
         </div>
 
         {/* Properties */}
@@ -447,6 +797,98 @@ const RpaBuilder = () => {
             },
           ]}
         />
+      </Drawer>
+
+
+      {/* Recorder drawer */}
+      <Drawer
+        title="Recorder"
+        open={recorderOpen}
+        onClose={() => setRecorderOpen(false)}
+        width={720}
+        extra={
+          <Space>
+            {recorderSession ? (
+              <Button danger icon={<StopOutlined />} loading={recorderBusy} onClick={stopRecorder}>
+                Stop
+              </Button>
+            ) : (
+              <Button type="primary" icon={<VideoCameraOutlined />} loading={recorderBusy} onClick={startRecorder}>
+                Start
+              </Button>
+            )}
+            <Button
+              icon={<ImportOutlined />}
+              disabled={recorderEvents.length === 0}
+              onClick={importRecorderEvents}
+            >
+              Import nodes
+            </Button>
+          </Space>
+        }
+      >
+        <Space direction="vertical" style={{width: '100%'}} size={12}>
+          <Alert
+            type={recorderSession ? 'success' : 'info'}
+            showIcon
+            message={
+              recorderSession
+                ? `Recording profile #${recorderSession.windowId}. Interact with the opened browser.`
+                : 'Select a profile, start recorder, then use the browser normally.'
+            }
+          />
+          <Select
+            style={{width: '100%'}}
+            placeholder="Select profile/window"
+            value={recorderWindowId}
+            disabled={!!recorderSession}
+            onChange={setRecorderWindowId}
+            optionFilterProp="label"
+            showSearch
+            options={windows.map(w => ({
+              label: `${w.name ?? w.profile_id ?? w.id} (#${w.id})`,
+              value: w.id!,
+            }))}
+          />
+          <Table
+            size="small"
+            rowKey="id"
+            pagination={{pageSize: 8}}
+            dataSource={recorderEvents}
+            columns={[
+              {
+                title: 'Type',
+                dataIndex: 'type',
+                width: 110,
+                render: value => <Tag color={value === 'navigation' ? 'blue' : 'green'}>{value}</Tag>,
+              },
+              {
+                title: 'Selector / URL',
+                render: (_, event) => (
+                  <Tooltip title={event.selector || event.url}>
+                    <span>{event.selector || event.url || '—'}</span>
+                  </Tooltip>
+                ),
+                ellipsis: true,
+              },
+              {
+                title: 'Value/Text',
+                width: 180,
+                render: (_, event) => (
+                  <Tooltip title={event.value || event.text}>
+                    <span>{event.value || event.text || '—'}</span>
+                  </Tooltip>
+                ),
+                ellipsis: true,
+              },
+              {
+                title: 'Time',
+                width: 90,
+                render: (_, event) => new Date(event.timestamp).toLocaleTimeString(),
+              },
+            ]}
+          />
+        </Space>
       </Drawer>
 
       {/* Run modal */}

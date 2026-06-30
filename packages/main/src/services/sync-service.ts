@@ -110,7 +110,7 @@ export const initSyncService = () => {
       const startX = startOffset?.x || 0;
       const startY = startOffset?.y || 0;
 
-      pids.forEach((pid, index) => {
+      pids.forEach((pid: number, index: number) => {
         const left = startX + index * offset;
         const top = startY + index * offset;
         windowManager.setWindowBounds(pid, left, top, size.width, size.height);

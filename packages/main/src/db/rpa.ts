@@ -1,5 +1,6 @@
 import {db} from '.';
 import type {RPA} from '../../../shared/types/rpa';
+import {decryptWorkflowSecrets, encryptWorkflowSecrets} from '../puppeteer/rpa/secrets';
 
 /**
  * Browser RPA persistence layer.
@@ -23,6 +24,21 @@ interface WorkflowRow {
   updated_at?: string | null;
 }
 
+interface ScheduleRow {
+  id: string;
+  name: string;
+  cron: string;
+  workflow_id: number;
+  workflow_name?: string | null;
+  window_ids: string;
+  variables?: string | null;
+  enabled?: boolean | number;
+  valid?: boolean | number;
+  last_run?: string | null;
+  created_at?: string;
+  updated_at?: string | null;
+}
+
 const serializeTags = (tags?: string | string[] | null): string | null => {
   if (tags == null) return null;
   return Array.isArray(tags) ? JSON.stringify(tags) : tags;
@@ -38,10 +54,19 @@ const parseTags = (raw?: string | null): string[] => {
   }
 };
 
+const parseJsonValue = <T>(raw: string | null | undefined, fallback: T): T => {
+  if (!raw) return fallback;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+};
+
 const fromRow = (row: WorkflowRow): RPA.WorkflowRecord => {
   let definition: RPA.Workflow | undefined;
   try {
-    definition = JSON.parse(row.definition);
+    definition = decryptWorkflowSecrets(JSON.parse(row.definition) as RPA.Workflow);
   } catch {
     definition = undefined;
   }
@@ -65,10 +90,11 @@ const toRow = (record: RPA.WorkflowRecord): Partial<WorkflowRow> => {
   if (record.name !== undefined) row.name = record.name;
   if (record.description !== undefined) row.description = record.description ?? null;
   if (record.definition !== undefined) {
-    row.definition =
+    const definition =
       typeof record.definition === 'string'
-        ? record.definition
-        : JSON.stringify(record.definition);
+        ? (JSON.parse(record.definition) as RPA.Workflow)
+        : record.definition;
+    row.definition = JSON.stringify(encryptWorkflowSecrets(definition));
   }
   if (record.folder !== undefined) row.folder = record.folder ?? null;
   if (record.tags !== undefined) row.tags = serializeTags(record.tags);
@@ -93,9 +119,10 @@ const getById = async (id: number): Promise<RPA.WorkflowRecord | undefined> => {
 };
 
 const create = async (record: RPA.WorkflowRecord) => {
+  const row = toRow(record);
   const insertData = {
-    ...toRow(record),
-    definition: toRow(record).definition ?? JSON.stringify(emptyWorkflow()),
+    ...row,
+    definition: row.definition ?? JSON.stringify(encryptWorkflowSecrets(emptyWorkflow())),
     status: 1,
     created_at: new Date().toISOString(),
   } as WorkflowRow;
@@ -176,6 +203,10 @@ const insertLog = async (log: RPA.TaskLog) => {
     status: log.status ?? null,
     message: log.message ?? null,
     stack: log.stack ?? null,
+    artifact_dir: log.artifact_dir ?? null,
+    screenshot_path: log.screenshot_path ?? null,
+    html_path: log.html_path ?? null,
+    current_url: log.current_url ?? null,
     retry_count: log.retry_count ?? 0,
     started_at: log.started_at ?? null,
     finished_at: log.finished_at ?? null,
@@ -205,6 +236,74 @@ const clearLogs = async (workflowId?: number) => {
   return await query.delete();
 };
 
+// ---- Scheduler ------------------------------------------------------------
+
+const scheduleFromRow = (row: ScheduleRow): RPA.ScheduleRecord => ({
+  id: row.id,
+  name: row.name,
+  cron: row.cron,
+  workflowId: row.workflow_id,
+  workflowName: row.workflow_name ?? undefined,
+  windowIds: parseJsonValue<number[]>(row.window_ids, []),
+  variables: parseJsonValue<Record<string, unknown> | undefined>(row.variables, undefined),
+  enabled: !!row.enabled,
+  valid: !!row.valid,
+  lastRun: row.last_run ?? null,
+  created_at: row.created_at,
+  updated_at: row.updated_at ?? undefined,
+});
+
+const scheduleToRow = (schedule: RPA.ScheduleRecord): ScheduleRow => ({
+  id: schedule.id,
+  name: schedule.name,
+  cron: schedule.cron,
+  workflow_id: schedule.workflowId,
+  window_ids: JSON.stringify(schedule.windowIds ?? []),
+  variables: schedule.variables ? JSON.stringify(schedule.variables) : null,
+  enabled: schedule.enabled,
+  valid: schedule.valid,
+  last_run: schedule.lastRun ?? null,
+  created_at: schedule.created_at,
+  updated_at: schedule.updated_at ?? null,
+});
+
+const listSchedules = async (): Promise<RPA.ScheduleRecord[]> => {
+  const rows: ScheduleRow[] = await db('rpa_schedule')
+    .select('rpa_schedule.*', 'rpa_workflow.name as workflow_name')
+    .leftJoin('rpa_workflow', 'rpa_schedule.workflow_id', '=', 'rpa_workflow.id')
+    .orderBy('rpa_schedule.created_at', 'desc');
+  return rows.map(scheduleFromRow);
+};
+
+const createSchedule = async (schedule: RPA.ScheduleRecord): Promise<RPA.ScheduleRecord> => {
+  const now = new Date().toISOString();
+  const record = {...schedule, created_at: now, updated_at: now};
+  await db('rpa_schedule').insert(scheduleToRow(record));
+  return record;
+};
+
+const updateSchedule = async (
+  id: string,
+  changes: Partial<RPA.ScheduleRecord>,
+): Promise<RPA.ScheduleRecord | undefined> => {
+  const row: ScheduleRow | undefined = await db('rpa_schedule').where({id}).first();
+  if (!row) return undefined;
+  const current = scheduleFromRow(row);
+  const next: RPA.ScheduleRecord = {
+    ...current,
+    ...changes,
+    id,
+    updated_at: new Date().toISOString(),
+  };
+  await db('rpa_schedule').where({id}).update(scheduleToRow(next));
+  return next;
+};
+
+const deleteSchedule = async (id: string): Promise<boolean> => {
+  const count = await db('rpa_schedule').where({id}).delete();
+  return count > 0;
+};
+
 export const RpaDB = {
   all,
   getById,
@@ -218,4 +317,8 @@ export const RpaDB = {
   insertLog,
   getLogs,
   clearLogs,
+  listSchedules,
+  createSchedule,
+  updateSchedule,
+  deleteSchedule,
 };

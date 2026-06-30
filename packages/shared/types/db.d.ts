@@ -33,7 +33,7 @@ export namespace DB {
 
     useLocalChrome?: boolean;
     localChromePath?: string;
-    chromiumBinPath?: string;
+    chromiumBinPath?: string | null;
     userDataDir?: string;
   }
 

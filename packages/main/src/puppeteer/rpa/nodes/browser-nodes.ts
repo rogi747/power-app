@@ -1,4 +1,5 @@
 import {registerNode, registerNodeAlias} from '../registry';
+import {cancellableDelay} from '../cancellation';
 import {resolveParams} from '../variables';
 
 /**
@@ -136,7 +137,7 @@ registerNode({
   category: 'browser',
   execute: async (node, ctx) => {
     const {ms} = resolveParams(node.params, ctx.variables);
-    await new Promise(r => setTimeout(r, num(ms, 1000)));
+    await cancellableDelay(num(ms, 1000), ctx.token);
   },
 });
 

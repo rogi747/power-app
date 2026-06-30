@@ -1,4 +1,7 @@
 import {randomUUID} from 'crypto';
+import {app} from 'electron';
+import {existsSync, mkdirSync, writeFileSync} from 'fs';
+import {join} from 'path';
 import type {RPA} from '../../../../shared/types/rpa';
 import {firstValidationMessage, validateWorkflow} from '../../../../shared/rpa/validator';
 import {createLogger} from '../../../../shared/utils/logger';
@@ -8,6 +11,7 @@ import {RpaDB} from '../../db/rpa';
 import {getMainWindow} from '../../mainWindow';
 import {acquireSession, releaseSession} from './browser-session';
 import {getNode, type ExecutionContext, type NodeResult} from './registry';
+import {RpaCancellationToken, cancellableDelay} from './cancellation';
 import {resolveParams} from './variables';
 
 // Side-effect imports: registering the built-in node library.
@@ -17,13 +21,73 @@ import './nodes/integration-nodes';
 
 const logger = createLogger(WINDOW_LOGGER_LABEL);
 
+const safeName = (value: string): string => value.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80);
+
+const captureErrorArtifacts = async (
+  ctx: ExecutionContext,
+  node: RPA.Node,
+): Promise<Partial<RPA.TaskLog>> => {
+  const artifactDir = join(
+    app.getPath('userData'),
+    'rpa-artifacts',
+    safeName(ctx.runId),
+    `${Date.now()}_${safeName(node.id)}_${safeName(node.type)}`,
+  );
+
+  const artifacts: Partial<RPA.TaskLog> = {
+    artifact_dir: artifactDir,
+    current_url: ctx.page.url(),
+  };
+
+  try {
+    if (!existsSync(artifactDir)) mkdirSync(artifactDir, {recursive: true});
+
+    const screenshotPath = join(artifactDir, 'screenshot.png');
+    const htmlPath = join(artifactDir, 'page.html');
+    const metaPath = join(artifactDir, 'meta.json');
+
+    await ctx.page.screenshot({path: screenshotPath, fullPage: true});
+    artifacts.screenshot_path = screenshotPath;
+
+    const html = await ctx.page.content();
+    writeFileSync(htmlPath, html, 'utf-8');
+    artifacts.html_path = htmlPath;
+
+    writeFileSync(
+      metaPath,
+      JSON.stringify(
+        {
+          runId: ctx.runId,
+          workflowId: ctx.workflowId,
+          workflowName: ctx.workflowName,
+          windowId: ctx.windowId,
+          profileId: ctx.profileId,
+          nodeId: node.id,
+          nodeType: node.type,
+          nodeLabel: node.label,
+          currentUrl: artifacts.current_url,
+          capturedAt: new Date().toISOString(),
+        },
+        null,
+        2,
+      ),
+      'utf-8',
+    );
+  } catch (error) {
+    logger.warn('failed to capture rpa error artifacts', error);
+  }
+
+  return artifacts;
+};
+
 /** Tracks in-flight runs so they can be cancelled by id. */
-const activeRuns = new Map<string, {cancelled: boolean}>();
+const activeRuns = new Map<string, {cancelled: boolean; token: RpaCancellationToken}>();
 
 export const cancelRun = (runId: string): boolean => {
   const run = activeRuns.get(runId);
   if (run) {
     run.cancelled = true;
+    run.token.cancel();
     return true;
   }
   return false;
@@ -83,12 +147,13 @@ const runNodeWithPolicy = async (
   // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
+      ctx.token.throwIfCancelled();
       const exec = def.execute(node, ctx);
       const guarded = Promise.race([
         exec,
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error(`Node timed out after ${timeout}ms`)), timeout),
-        ),
+        cancellableDelay(timeout, ctx.token).then(() => {
+          throw new Error(`Node timed out after ${timeout}ms`);
+        }),
       ]);
       return await guarded;
     } catch (error) {
@@ -102,7 +167,7 @@ const runNodeWithPolicy = async (
           message: `Retry ${attempt}/${maxRetry}: ${String(error)}`,
         });
         if (policy.retryInterval) {
-          await new Promise(r => setTimeout(r, policy.retryInterval));
+          await cancellableDelay(policy.retryInterval, ctx.token);
         }
         continue;
       }
@@ -131,7 +196,7 @@ export const runWorkflow = async (
   runIdOverride?: string,
 ): Promise<RPA.RunResult> => {
   const runId = runIdOverride ?? randomUUID();
-  const runState = {cancelled: false};
+  const runState = {cancelled: false, token: new RpaCancellationToken()};
   activeRuns.set(runId, runState);
 
   const wfRecord = record ?? (await RpaDB.getById(options.workflowId));
@@ -198,6 +263,7 @@ export const runWorkflow = async (
       page: session.page,
       variables,
       cancelled: false,
+      token: runState.token,
       log,
     };
 
@@ -227,14 +293,14 @@ const executeFrom = async (
   graph: Graph,
   ctx: ExecutionContext,
   settings: RPA.WorkflowSettings,
-  runState: {cancelled: boolean},
+  runState: {cancelled: boolean; token: RpaCancellationToken},
   options: RPA.RunOptions,
   stopAt?: string,
 ): Promise<NodeResult | void> => {
   let currentId: string | undefined = startId;
 
   while (currentId && currentId !== stopAt) {
-    if (runState.cancelled) {
+    if (runState.cancelled || runState.token.cancelled) {
       ctx.cancelled = true;
       throw new Error('Run cancelled');
     }
@@ -272,12 +338,14 @@ const executeFrom = async (
       result = await runNodeWithPolicy(node, ctx, settings);
     } catch (error) {
       const policy = node.error ?? {};
+      const artifacts = await captureErrorArtifacts(ctx, node);
       await ctx.log({
         node_id: node.id,
         node_type: node.type,
         status: 'error',
         message: String(error),
         stack: (error as Error)?.stack,
+        ...artifacts,
       });
       if (policy.onError === 'skip' || policy.onError === 'continue' || settings.continueOnError) {
         currentId = nextNode(graph, currentId);
@@ -308,7 +376,7 @@ const runLoop = async (
   graph: Graph,
   ctx: ExecutionContext,
   settings: RPA.WorkflowSettings,
-  runState: {cancelled: boolean},
+  runState: {cancelled: boolean; token: RpaCancellationToken},
   options: RPA.RunOptions,
 ): Promise<NodeResult | void> => {
   const params = resolveParams(node.params, ctx.variables);
@@ -323,7 +391,7 @@ const runLoop = async (
     : [];
 
   for (let i = 0; i < items.length; i++) {
-    if (runState.cancelled) throw new Error('Run cancelled');
+    if (runState.cancelled || runState.token.cancelled) throw new Error('Run cancelled');
     if (params.itemVar) ctx.variables[String(params.itemVar)] = items[i];
     if (params.indexVar) ctx.variables[String(params.indexVar)] = i;
     const signal = await executeFrom(bodyStart, graph, ctx, settings, runState, options);

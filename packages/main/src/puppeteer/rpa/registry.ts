@@ -1,5 +1,6 @@
 import type {Page} from 'puppeteer';
 import type {RPA} from '../../../../shared/types/rpa';
+import type {RpaCancellationToken} from './cancellation';
 
 /** Mutable run-time state shared across all nodes in one execution. */
 export interface ExecutionContext {
@@ -15,6 +16,8 @@ export interface ExecutionContext {
   variables: Record<string, any>;
   /** Cooperative cancellation flag checked between nodes. */
   cancelled: boolean;
+  /** Shared cancellation token for delay/fetch/native waits. */
+  token: RpaCancellationToken;
   /** Structured logger that also persists a TaskLog row + emits to the UI. */
   log: (entry: Partial<RPA.TaskLog>) => Promise<void> | void;
 }

@@ -14,10 +14,13 @@ import type {ColumnsType} from 'antd/es/table';
 import {
   ClearOutlined,
   DownloadOutlined,
+  FileTextOutlined,
+  FolderOpenOutlined,
   PauseCircleOutlined,
   PlayCircleOutlined,
   StopOutlined,
   SyncOutlined,
+  CameraOutlined,
 } from '@ant-design/icons';
 import {useTranslation} from 'react-i18next';
 import {CommonBridge, RpaBridge} from '#preload';
@@ -71,7 +74,9 @@ const RpaLogs = () => {
       if (!liveRef.current) return;
       setLogs(prev => [event, ...prev].slice(0, 1000));
     });
-    return () => unsubscribe?.();
+    return () => {
+      unsubscribe?.();
+    };
   }, []);
 
   const clearLogs = async () => {
@@ -98,6 +103,16 @@ const RpaLogs = () => {
     await RpaBridge?.cancel(runId);
     messageApi.success(t('rpa_run_cancelled'));
     await fetchLogs();
+  };
+
+  const revealPath = async (path?: string | null) => {
+    if (!path) return;
+    await CommonBridge?.revealPath(path);
+  };
+
+  const openPath = async (path?: string | null) => {
+    if (!path) return;
+    await CommonBridge?.openPath(path);
   };
 
   const columns: ColumnsType<RPA.TaskLog> = useMemo(
@@ -163,6 +178,43 @@ const RpaLogs = () => {
             </span>
           </Tooltip>
         ),
+      },
+      {
+        title: t('rpa_log_artifacts', 'Artifacts'),
+        key: 'artifacts',
+        width: 120,
+        align: 'center',
+        render: (_, r) =>
+          r.artifact_dir || r.screenshot_path || r.html_path ? (
+            <Space size={8}>
+              {r.screenshot_path && (
+                <Tooltip title={t('rpa_log_open_screenshot', 'Open screenshot')}>
+                  <CameraOutlined
+                    style={{cursor: 'pointer'}}
+                    onClick={() => openPath(r.screenshot_path)}
+                  />
+                </Tooltip>
+              )}
+              {r.html_path && (
+                <Tooltip title={t('rpa_log_open_html', 'Open HTML')}>
+                  <FileTextOutlined
+                    style={{cursor: 'pointer'}}
+                    onClick={() => openPath(r.html_path)}
+                  />
+                </Tooltip>
+              )}
+              {r.artifact_dir && (
+                <Tooltip title={t('rpa_log_reveal_artifacts', 'Reveal artifacts')}>
+                  <FolderOpenOutlined
+                    style={{cursor: 'pointer'}}
+                    onClick={() => revealPath(r.artifact_dir)}
+                  />
+                </Tooltip>
+              )}
+            </Space>
+          ) : (
+            '—'
+          ),
       },
       {
         title: '',

@@ -4,7 +4,7 @@ import {WindowDB} from '../db/window';
 // import {getChromePath} from './device';
 import {BrowserWindow} from 'electron';
 import puppeteer from 'puppeteer';
-import {execSync, spawn} from 'child_process';
+import {execSync, spawn, type ChildProcessWithoutNullStreams} from 'child_process';
 import * as portscanner from 'portscanner';
 import {sleep} from '../utils/sleep';
 import SocksServer from '../proxy-server/socks-server';
@@ -348,7 +348,7 @@ export async function openFingerprintWindow(id: number, headless = false) {
       }
       // const iconPath = await generateChromeIcon(windowDataDir, id);
 
-      let chromeInstance;
+      let chromeInstance: ChildProcessWithoutNullStreams | undefined;
       try {
         // if (isMac) {
         //   chromeInstance = spawn(driverPath, launchParamter);
@@ -373,22 +373,23 @@ export async function openFingerprintWindow(id: number, headless = false) {
       if (!chromeInstance) {
         return;
       }
+      const launchedChrome = chromeInstance;
       await sleep(1);
       win.webContents.send('window-opened', id);
-      chromeInstance.stdout.on('data', _chunk => {
+      launchedChrome.stdout.on('data', _chunk => {
         // const str = _chunk.toString();
         // console.error('stderr: ', str);
       });
       //This place needs to monitor stderr, otherwise some websites will freeze.
-      chromeInstance.stderr.on('data', _chunk => {
+      launchedChrome.stderr.on('data', _chunk => {
         // const str = _chunk.toString();
         // console.error('stderr: ', str);
       });
 
-      chromeInstance.on('close', async () => {
+      launchedChrome.on('close', async () => {
         logger.info(`Chrome process exited at port ${chromePort}, closed time: ${new Date()}`);
         logger.info(`Chrome user-data-dir: ${windowDataDir}`);
-        logger.info(`Chrome PID was: ${chromeInstance.pid}`);
+        logger.info(`Chrome PID was: ${launchedChrome.pid}`);
         if (proxyType === 'socks5') {
           (proxyServer as Server<typeof IncomingMessage, typeof ServerResponse>)?.close(() => {
             logger.info('Socks5 Proxy server was closed.');
@@ -601,7 +602,7 @@ export async function focusFingerprintWindow(id: number) {
         try {
           const client = await page.createCDPSession();
           const {windowId} = await client.send('Browser.getWindowForTarget', {
-            targetId: (page.target() as {_targetId: string})._targetId,
+            targetId: (page.target() as unknown as {_targetId: string})._targetId,
           });
 
           //Minimize first and then restore

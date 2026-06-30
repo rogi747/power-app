@@ -135,12 +135,74 @@ export namespace RPA {
     status?: TaskStatus;
     message?: string;
     stack?: string;
+    /** Directory containing debug artifacts for a failed node/run. */
+    artifact_dir?: string | null;
+    /** Screenshot captured when a node failed. */
+    screenshot_path?: string | null;
+    /** HTML snapshot captured when a node failed. */
+    html_path?: string | null;
+    /** Page URL at the time of the log entry. */
+    current_url?: string | null;
     retry_count?: number;
     started_at?: string;
     finished_at?: string;
     /** Duration in milliseconds. */
     duration?: number;
     created_at?: string;
+  }
+
+  /** Persisted cron schedule for running workflows in the background. */
+  export interface ScheduleRecord {
+    id: string;
+    name: string;
+    /** Standard 5-field cron expression: `m h dom mon dow`. */
+    cron: string;
+    workflowId: number;
+    workflowName?: string;
+    windowIds: number[];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    variables?: Record<string, any>;
+    enabled: boolean;
+    valid: boolean;
+    lastRun: string | null;
+    created_at?: string;
+    updated_at?: string;
+  }
+
+  export interface ScheduleInput {
+    name: string;
+    cron: string;
+    workflowId: number;
+    windowIds: number[];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    variables?: Record<string, any>;
+    enabled?: boolean;
+  }
+
+  export type RecorderEventType =
+    | 'click'
+    | 'input'
+    | 'change'
+    | 'submit'
+    | 'navigation';
+
+  export interface RecorderEvent {
+    id: string;
+    type: RecorderEventType;
+    url: string;
+    title?: string;
+    selector?: string;
+    text?: string;
+    value?: string;
+    tagName?: string;
+    timestamp: string;
+  }
+
+  export interface RecorderSession {
+    id: string;
+    windowId: number;
+    startedAt: string;
+    eventCount: number;
   }
 
   /** Result returned to the caller after a run finishes. */

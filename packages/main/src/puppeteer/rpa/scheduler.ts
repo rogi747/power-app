@@ -1,47 +1,32 @@
 import {randomUUID} from 'crypto';
+import type {RPA} from '../../../../shared/types/rpa';
 import {createLogger} from '../../../../shared/utils/logger';
 import {WINDOW_LOGGER_LABEL} from '../../constants';
+import {RpaDB} from '../../db/rpa';
 import {getMainWindow} from '../../mainWindow';
 import {RpaThreadManager} from './thread-manager';
 
 /**
  * RPA scheduler.
  *
- * Fires a workflow on a cron expression against a set of profiles. Each tick
- * enqueues a batch through the thread manager so concurrency limits are still
- * respected.
+ * Schedules are persisted in SQLite and loaded into a small in-memory cache for
+ * the ticking loop. SQLite is the source of truth; the cache only avoids DB work
+ * every second. Each fire enqueues a batch through the thread manager so the
+ * existing concurrency limit is respected.
  *
- * Implementation note: this ships a tiny self-contained cron evaluator instead
- * of pulling in `node-cron`, so the feature works with zero extra runtime
- * dependencies and across the Electron main bundle. It supports the standard
- * 5-field cron syntax (minute hour day-of-month month day-of-week) with `*`,
- * lists (`1,15`), ranges (`1-5`) and steps (`* /15`). A single 1s timer drives
- * all schedules.
+ * Cron support: standard 5-field syntax (minute hour day-of-month month
+ * day-of-week) with star wildcards, lists (`1,15`), ranges (`1-5`) and step values.
  */
 
 const logger = createLogger(WINDOW_LOGGER_LABEL);
 
-export interface RpaScheduleInput {
-  name: string;
-  /** Standard 5-field cron expression: `m h dom mon dow`. */
-  cron: string;
-  workflowId: number;
-  windowIds: number[];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  variables?: Record<string, any>;
-  enabled?: boolean;
-}
-
-export interface RpaSchedule extends RpaScheduleInput {
-  id: string;
-  enabled: boolean;
-  lastRun: string | null;
-  valid: boolean;
-}
+export type RpaScheduleInput = RPA.ScheduleInput;
+export type RpaSchedule = RPA.ScheduleRecord;
 
 const schedules = new Map<string, RpaSchedule>();
+const firedMinuteKeys = new Set<string>();
 let ticker: ReturnType<typeof setInterval> | null = null;
-let lastMinuteFired = -1;
+let loaded = false;
 
 /** Parse one cron field into the set of matching integers. */
 const parseField = (field: string, min: number, max: number): Set<number> => {
@@ -49,6 +34,8 @@ const parseField = (field: string, min: number, max: number): Set<number> => {
   for (const part of field.split(',')) {
     const [rangePart, stepPart] = part.split('/');
     const step = stepPart ? parseInt(stepPart, 10) : 1;
+    if (!Number.isFinite(step) || step <= 0) throw new Error('Invalid cron step');
+
     let lo = min;
     let hi = max;
     if (rangePart !== '*' && rangePart !== '') {
@@ -59,6 +46,9 @@ const parseField = (field: string, min: number, max: number): Set<number> => {
       } else {
         lo = hi = parseInt(rangePart, 10);
       }
+    }
+    if (!Number.isFinite(lo) || !Number.isFinite(hi) || lo > hi) {
+      throw new Error('Invalid cron range');
     }
     for (let v = lo; v <= hi; v += step) {
       if (v >= min && v <= max) out.add(v);
@@ -94,13 +84,46 @@ const matches = (expr: string, d: Date): boolean => {
   );
 };
 
+const minuteKey = (d: Date): string => {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+    d.getHours(),
+  )}:${pad(d.getMinutes())}`;
+};
+
+const pruneFiredMinuteKeys = (currentKey: string) => {
+  // Keep only the current key. This avoids unbounded growth while still
+  // preventing double-fires inside the same minute.
+  for (const key of firedMinuteKeys) {
+    if (key !== currentKey) firedMinuteKeys.delete(key);
+  }
+};
+
 const emit = () => {
   getMainWindow()?.webContents.send('rpa-schedule-event', list());
 };
 
-const fire = (schedule: RpaSchedule) => {
+const upsertCache = (schedule: RpaSchedule) => {
+  schedules.set(schedule.id, schedule);
+};
+
+const refreshCache = async () => {
+  const rows = await RpaDB.listSchedules();
+  schedules.clear();
+  rows.forEach(upsertCache);
+  loaded = true;
+};
+
+const ensureLoaded = async () => {
+  if (loaded) return;
+  await refreshCache();
+};
+
+const fire = async (schedule: RpaSchedule) => {
   logger.info(`Schedule ${schedule.id} firing for workflow ${schedule.workflowId}`);
-  schedule.lastRun = new Date().toISOString();
+  const lastRun = new Date().toISOString();
+  schedule.lastRun = lastRun;
+  await RpaDB.updateSchedule(schedule.id, {lastRun});
   RpaThreadManager.enqueueBatch(
     schedule.workflowId,
     schedule.windowIds,
@@ -108,29 +131,44 @@ const fire = (schedule: RpaSchedule) => {
   );
 };
 
-const tick = () => {
-  const now = new Date();
-  // Fire at most once per clock-minute.
-  if (now.getMinutes() === lastMinuteFired) return;
-  lastMinuteFired = now.getMinutes();
-  let fired = false;
-  for (const schedule of schedules.values()) {
-    if (schedule.enabled && schedule.valid && matches(schedule.cron, now)) {
-      fire(schedule);
-      fired = true;
+const tick = async () => {
+  try {
+    await ensureLoaded();
+    const now = new Date();
+    const key = minuteKey(now);
+    pruneFiredMinuteKeys(key);
+
+    let fired = false;
+    for (const schedule of schedules.values()) {
+      const scheduleKey = `${schedule.id}:${key}`;
+      if (firedMinuteKeys.has(scheduleKey)) continue;
+      if (schedule.enabled && schedule.valid && matches(schedule.cron, now)) {
+        firedMinuteKeys.add(scheduleKey);
+        await fire(schedule);
+        fired = true;
+      }
     }
+    if (fired) emit();
+  } catch (error) {
+    logger.error('RPA scheduler tick failed', error);
   }
-  if (fired) emit();
 };
 
 const ensureTicker = () => {
   if (ticker) return;
-  ticker = setInterval(tick, 1000);
+  ticker = setInterval(() => void tick(), 1000);
+};
+
+export const start = async () => {
+  await refreshCache();
+  ensureTicker();
+  emit();
 };
 
 export const list = (): RpaSchedule[] => Array.from(schedules.values());
 
-export const create = (input: RpaScheduleInput): RpaSchedule => {
+export const create = async (input: RpaScheduleInput): Promise<RpaSchedule> => {
+  await ensureLoaded();
   const schedule: RpaSchedule = {
     ...input,
     id: `sch_${randomUUID()}`,
@@ -138,33 +176,39 @@ export const create = (input: RpaScheduleInput): RpaSchedule => {
     lastRun: null,
     valid: validate(input.cron),
   };
-  schedules.set(schedule.id, schedule);
+  const created = await RpaDB.createSchedule(schedule);
+  upsertCache(created);
   ensureTicker();
   emit();
-  return schedule;
+  return created;
 };
 
-export const toggle = (id: string, enabled: boolean): RpaSchedule | undefined => {
-  const schedule = schedules.get(id);
-  if (!schedule) return undefined;
-  schedule.enabled = enabled;
+export const toggle = async (id: string, enabled: boolean): Promise<RpaSchedule | undefined> => {
+  await ensureLoaded();
+  const updated = await RpaDB.updateSchedule(id, {enabled});
+  if (!updated) return undefined;
+  upsertCache(updated);
   emit();
-  return schedule;
+  return updated;
 };
 
-export const remove = (id: string): {success: boolean} => {
-  const ok = schedules.delete(id);
+export const remove = async (id: string): Promise<{success: boolean}> => {
+  await ensureLoaded();
+  const ok = await RpaDB.deleteSchedule(id);
+  schedules.delete(id);
   emit();
   return {success: ok};
 };
 
-/** Stop the ticker and clear all schedules (e.g. on app quit). */
+/** Stop the ticker and clear runtime cache (e.g. on app quit). */
 export const disposeAll = () => {
   if (ticker) {
     clearInterval(ticker);
     ticker = null;
   }
   schedules.clear();
+  firedMinuteKeys.clear();
+  loaded = false;
 };
 
-export const RpaScheduler = {list, create, toggle, remove, disposeAll, validate};
+export const RpaScheduler = {start, list, create, toggle, remove, disposeAll, validate};

@@ -70,7 +70,7 @@ const AddableSelect: React.FC<AddableSelectOptions> = ({
         color={color}
         onMouseDown={onPreventMouseDown}
         closable={closable}
-        variant="borderless"
+        bordered={false}
         onClose={onClose}
         style={{marginRight: 3}}
       >

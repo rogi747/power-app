@@ -96,7 +96,9 @@ const RpaScheduler = () => {
     const unsubscribe = RpaBridge?.onScheduleEvent(payload => {
       if (Array.isArray(payload)) setSchedules(payload as Schedule[]);
     });
-    return () => unsubscribe?.();
+    return () => {
+      unsubscribe?.();
+    };
   }, []);
 
   const openCreate = async () => {

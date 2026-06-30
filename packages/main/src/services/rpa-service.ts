@@ -6,6 +6,8 @@ import {SERVICE_LOGGER_LABEL} from '../constants';
 import {startWorkflowRun, cancelRun} from '../puppeteer/rpa/engine';
 import {RpaThreadManager} from '../puppeteer/rpa/thread-manager';
 import {RpaScheduler, type RpaScheduleInput} from '../puppeteer/rpa/scheduler';
+import {stripWorkflowSecrets} from '../puppeteer/rpa/secrets';
+import {RpaRecorder} from '../puppeteer/rpa/recorder';
 
 const logger = createLogger(SERVICE_LOGGER_LABEL);
 
@@ -56,7 +58,17 @@ export const initRpaService = () => {
   ipcMain.handle('rpa-workflow-export', async (_, id: number) => {
     const record = await RpaDB.getById(id);
     if (!record) return {success: false, message: 'Workflow not found.'};
-    return {success: true, data: record};
+    const definition =
+      typeof record.definition === 'string'
+        ? (JSON.parse(record.definition) as RPA.Workflow)
+        : record.definition;
+    return {
+      success: true,
+      data: {
+        ...record,
+        definition: definition ? stripWorkflowSecrets(definition) : definition,
+      },
+    };
   });
 
   // Import accepts a previously exported record (or raw Workflow definition).
@@ -115,7 +127,25 @@ export const initRpaService = () => {
     return {success: true, message: 'Queue cleared.'};
   });
 
+  // ---- Recorder -----------------------------------------------------------
+
+  ipcMain.handle('rpa-recorder-start', async (_, windowId: number) => {
+    return RpaRecorder.start(windowId);
+  });
+
+  ipcMain.handle('rpa-recorder-stop', async (_, sessionId: string) => {
+    return RpaRecorder.stop(sessionId);
+  });
+
+  ipcMain.handle('rpa-recorder-events', async (_, sessionId: string) => {
+    return RpaRecorder.events(sessionId);
+  });
+
   // ---- Scheduler ----------------------------------------------------------
+
+  void RpaScheduler.start().catch(error => {
+    logger.error('failed to start rpa scheduler', error);
+  });
 
   ipcMain.handle('rpa-schedule-list', async () => {
     return RpaScheduler.list();

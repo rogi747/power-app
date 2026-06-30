@@ -23,6 +23,12 @@ export const CommonBridge = {
     const result = await ipcRenderer.invoke('common-save-file', {filePath, buffer});
     return result;
   },
+  async revealPath(filePath: string) {
+    return await ipcRenderer.invoke('common-reveal-path', filePath);
+  },
+  async openPath(filePath: string) {
+    return await ipcRenderer.invoke('common-open-path', filePath);
+  },
   async getSettings() {
     const result = await ipcRenderer.invoke('common-fetch-settings');
     return result;

@@ -75,6 +75,17 @@ export const RpaBridge = {
     return await ipcRenderer.invoke('rpa-queue-cancel-all');
   },
 
+  // ---- Recorder -----------------------------------------------------------
+  async startRecorder(windowId: number): Promise<RPA.RecorderSession> {
+    return await ipcRenderer.invoke('rpa-recorder-start', windowId);
+  },
+  async stopRecorder(sessionId: string): Promise<{success: boolean; events: RPA.RecorderEvent[]}> {
+    return await ipcRenderer.invoke('rpa-recorder-stop', sessionId);
+  },
+  async recorderEvents(sessionId: string): Promise<RPA.RecorderEvent[]> {
+    return await ipcRenderer.invoke('rpa-recorder-events', sessionId);
+  },
+
   // ---- Scheduler ----------------------------------------------------------
   async listSchedules() {
     return await ipcRenderer.invoke('rpa-schedule-list');
@@ -114,5 +125,11 @@ export const RpaBridge = {
     const listener = (_: unknown, payload: unknown) => handler(payload);
     ipcRenderer.on('rpa-schedule-event', listener);
     return () => ipcRenderer.removeListener('rpa-schedule-event', listener);
+  },
+  /** Subscribe to live recorder events. */
+  onRecorderEvent(handler: (event: RPA.RecorderEvent) => void) {
+    const listener = (_: unknown, payload: RPA.RecorderEvent) => handler(payload);
+    ipcRenderer.on('rpa-recorder-event', listener);
+    return () => ipcRenderer.removeListener('rpa-recorder-event', listener);
   },
 };

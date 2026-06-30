@@ -1,4 +1,5 @@
 import {registerNode} from '../registry';
+import {cancellableDelay} from '../cancellation';
 import {resolveParams} from '../variables';
 
 /**
@@ -48,6 +49,7 @@ registerNode({
         messages,
         temperature: p.temperature != null ? Number(p.temperature) : 0.7,
       }),
+      signal: ctx.token.signal,
     });
     if (!res.ok) {
       throw new Error(`OpenAI request failed (${res.status}): ${await res.text()}`);
@@ -79,7 +81,7 @@ registerNode({
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
     else if (apiKey) url += `?key=${apiKey}`;
 
-    const res = await fetch(url, {headers});
+    const res = await fetch(url, {headers, signal: ctx.token.signal});
     if (!res.ok) {
       throw new Error(`Google Sheets read failed (${res.status}): ${await res.text()}`);
     }
@@ -122,6 +124,7 @@ registerNode({
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({values: rows}),
+      signal: ctx.token.signal,
     });
     if (!res.ok) {
       throw new Error(`Google Sheets append failed (${res.status}): ${await res.text()}`);
@@ -160,7 +163,7 @@ registerNode({
       }
     }
 
-    const res = await fetch(url, {method, headers, body});
+    const res = await fetch(url, {method, headers, body, signal: ctx.token.signal});
     const contentType = res.headers.get('content-type') || '';
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let data: any;
@@ -192,7 +195,9 @@ registerNode({
       submit.set('method', 'base64');
       submit.set('body', String(p.imageBase64 || ''));
     }
-    const inRes = await fetch(`https://2captcha.com/in.php?${submit.toString()}`);
+    const inRes = await fetch(`https://2captcha.com/in.php?${submit.toString()}`, {
+      signal: ctx.token.signal,
+    });
     const inData = await inRes.json();
     if (inData.status !== 1) {
       throw new Error(`2Captcha submit failed: ${inData.request}`);
@@ -202,9 +207,10 @@ registerNode({
     // Poll for the result (up to ~120s).
     const deadline = Date.now() + 120_000;
     while (Date.now() < deadline) {
-      await new Promise(r => setTimeout(r, 5000));
+      await cancellableDelay(5000, ctx.token);
       const poll = await fetch(
         `https://2captcha.com/res.php?key=${apiKey}&action=get&id=${captchaId}&json=1`,
+        {signal: ctx.token.signal},
       );
       const pollData = await poll.json();
       if (pollData.status === 1) {

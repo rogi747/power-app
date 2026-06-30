@@ -1,8 +1,9 @@
+import {randomUUID} from 'crypto';
 import {createLogger} from '../../../../shared/utils/logger';
 import {WINDOW_LOGGER_LABEL} from '../../constants';
 import {getSettings} from '../../utils/get-settings';
 import {getMainWindow} from '../../mainWindow';
-import {runWorkflow} from './engine';
+import {cancelRun, runWorkflow} from './engine';
 
 /**
  * RPA thread/queue manager.
@@ -56,16 +57,21 @@ const pump = () => {
     const job = queue.shift();
     if (!job) break;
     job.status = 'running';
+    job.runId = randomUUID();
     running.set(job.id, job);
     emit();
 
-    runWorkflow({workflowId: job.workflowId, windowId: job.windowId, variables: job.variables})
+    runWorkflow(
+      {workflowId: job.workflowId, windowId: job.windowId, variables: job.variables},
+      undefined,
+      job.runId,
+    )
       .then(result => {
-        job.status = result.status === 'completed' ? 'completed' : 'error';
+        job.status = result.status === 'completed' ? 'completed' : result.status === 'cancelled' ? 'cancelled' : 'error';
         job.runId = result.runId;
       })
       .catch(error => {
-        job.status = 'error';
+        job.status = cancelledAll ? 'cancelled' : 'error';
         logger.error('rpa job failed', error);
       })
       .finally(() => {
@@ -102,6 +108,7 @@ const status = () => ({
   limit: concurrency(),
   jobs: [...running.values(), ...queue].map(j => ({
     id: j.id,
+    runId: j.runId,
     windowId: j.windowId,
     workflowId: j.workflowId,
     status: j.status,
@@ -110,7 +117,13 @@ const status = () => ({
 
 const cancelAll = () => {
   cancelledAll = true;
-  queue.length = 0;
+  queue.splice(0).forEach(job => {
+    job.status = 'cancelled';
+  });
+  for (const job of running.values()) {
+    if (job.runId) cancelRun(job.runId);
+    job.status = 'cancelled';
+  }
   emit();
 };
 

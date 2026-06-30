@@ -45,6 +45,18 @@ export const initCommonService = () => {
     await writeFile(filePath, buffer);
   });
 
+  ipcMain.handle('common-reveal-path', async (_, filePath: string) => {
+    if (!filePath) return {success: false, message: 'Path is empty.'};
+    shell.showItemInFolder(filePath);
+    return {success: true};
+  });
+
+  ipcMain.handle('common-open-path', async (_, filePath: string) => {
+    if (!filePath) return {success: false, message: 'Path is empty.'};
+    const message = await shell.openPath(filePath);
+    return {success: !message, message};
+  });
+
   ipcMain.handle('common-fetch-settings', async () => {
     const settings = getSettings();
 
