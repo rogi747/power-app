@@ -82,25 +82,34 @@ const pump = () => {
   }
 };
 
-const enqueueBatch = (
+const enqueueJobs = (
   workflowId: number,
-  windowIds: number[],
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  variables?: Record<string, any>,
+  items: Array<{
+    windowId: number;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    variables?: Record<string, any>;
+  }>,
 ) => {
   cancelledAll = false;
-  const jobs: Job[] = windowIds.map(windowId => ({
+  const jobs: Job[] = items.map(item => ({
     id: uid(),
     workflowId,
-    windowId,
-    variables,
+    windowId: item.windowId,
+    variables: item.variables,
     status: 'queued',
   }));
   queue.push(...jobs);
   emit();
   pump();
-  return {success: true, message: `Queued ${jobs.length} profile(s).`, data: {count: jobs.length}};
+  return {success: true, message: `Queued ${jobs.length} job(s).`, data: {count: jobs.length}};
 };
+
+const enqueueBatch = (
+  workflowId: number,
+  windowIds: number[],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  variables?: Record<string, any>,
+) => enqueueJobs(workflowId, windowIds.map(windowId => ({windowId, variables})));
 
 const status = () => ({
   queued: queue.length,
@@ -129,6 +138,7 @@ const cancelAll = () => {
 
 export const RpaThreadManager = {
   enqueueBatch,
+  enqueueJobs,
   status,
   cancelAll,
 };

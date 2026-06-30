@@ -32,6 +32,24 @@ const WORLD_H = 3000;
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 2;
 
+const RUN_STATUS_COLORS: Partial<Record<RPA.TaskStatus, string>> = {
+  running: '#2563eb',
+  completed: '#16a34a',
+  error: '#dc2626',
+  cancelled: '#64748b',
+  retry: '#f59e0b',
+  paused: '#7c3aed',
+};
+
+const RUN_STATUS_ICONS: Partial<Record<RPA.TaskStatus, string>> = {
+  running: 'mdi:play-circle',
+  completed: 'mdi:check-circle',
+  error: 'mdi:close-circle',
+  cancelled: 'mdi:stop-circle',
+  retry: 'mdi:refresh-circle',
+  paused: 'mdi:pause-circle',
+};
+
 interface DragState {
   anchorX: number;
   anchorY: number;
@@ -74,7 +92,7 @@ const bezier = (x1: number, y1: number, x2: number, y2: number) => {
 
 const FlowCanvas: React.FC = () => {
   const dispatch = useDispatch();
-  const {nodes, edges, variables, settings, selectedNodeId, selectedNodeIds} = useSelector(
+  const {nodes, edges, variables, settings, selectedNodeId, selectedNodeIds, nodeRunStatus} = useSelector(
     (s: RootState) => s.rpaBuilder,
   );
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -438,6 +456,9 @@ const FlowCanvas: React.FC = () => {
           const primarySelected = node.id === selectedNodeId;
           const issue = nodeIssueMap.get(node.id);
           const issueColor = issue?.level === 'error' ? '#ef4444' : issue?.level === 'warning' ? '#f59e0b' : undefined;
+          const runState = nodeRunStatus[node.id];
+          const runColor = runState?.status ? RUN_STATUS_COLORS[runState.status] : undefined;
+          const highlightColor = runColor ?? issueColor;
           return (
             <div
               key={node.id}
@@ -452,9 +473,9 @@ const FlowCanvas: React.FC = () => {
                 borderRadius: 10,
                 borderLeft: `4px solid ${color}`,
                 boxShadow: selected
-                  ? `0 0 0 ${primarySelected ? 3 : 2}px ${issueColor ?? color}, 0 6px 16px rgba(0,0,0,0.12)`
-                  : issueColor
-                  ? `0 0 0 2px ${issueColor}, 0 2px 8px rgba(0,0,0,0.08)`
+                  ? `0 0 0 ${primarySelected ? 3 : 2}px ${highlightColor ?? color}, 0 6px 16px rgba(0,0,0,0.12)`
+                  : highlightColor
+                  ? `0 0 0 2px ${highlightColor}, 0 2px 8px rgba(0,0,0,0.08)`
                   : '0 2px 8px rgba(0,0,0,0.08)',
                 cursor: spaceDown ? 'grab' : 'grab',
                 userSelect: 'none',
@@ -484,9 +505,26 @@ const FlowCanvas: React.FC = () => {
                   {node.disabled && (
                     <div style={{fontSize: 11, color: '#cbd5e1'}}>disabled</div>
                   )}
+                  {runState?.status && (
+                    <div style={{fontSize: 11, color: runColor}}>
+                      {runState.status}
+                      {runState.duration != null ? ` · ${runState.duration}ms` : ''}
+                    </div>
+                  )}
                 </div>
                 {selectedNodeIds.length > 1 && selected && (
                   <span style={{fontSize: 11, color: '#64748b'}}>#{selectedNodeIds.indexOf(node.id) + 1}</span>
+                )}
+                {runState?.status && (
+                  <span
+                    title={`${runState.status}${runState.message ? `: ${runState.message}` : ''}`}
+                    style={{display: 'inline-flex'}}
+                  >
+                    <Icon
+                      icon={RUN_STATUS_ICONS[runState.status] ?? 'mdi:circle'}
+                      style={{color: runColor, fontSize: 16}}
+                    />
+                  </span>
                 )}
                 {issue && (
                   <span title={issue.messages.join('\n')} style={{display: 'inline-flex'}}>
@@ -597,6 +635,9 @@ const FlowCanvas: React.FC = () => {
           {nodes.map(node => {
             const spec = getSpec(node.type);
             const color = spec ? CATEGORY_COLORS[spec.category] : '#64748b';
+            const runState = nodeRunStatus[node.id];
+            const runColor = runState?.status ? RUN_STATUS_COLORS[runState.status] : undefined;
+            const fill = runColor ?? (selectedNodeIds.includes(node.id) ? color : '#94a3b8');
             return (
               <rect
                 key={node.id}
@@ -604,8 +645,8 @@ const FlowCanvas: React.FC = () => {
                 y={node.position.y * minimap.sy}
                 width={Math.max(3, NODE_W * minimap.sx)}
                 height={Math.max(3, NODE_H * minimap.sy)}
-                fill={selectedNodeIds.includes(node.id) ? color : '#94a3b8'}
-                opacity={selectedNodeIds.includes(node.id) ? 0.95 : 0.65}
+                fill={fill}
+                opacity={selectedNodeIds.includes(node.id) || runColor ? 0.95 : 0.65}
               />
             );
           })}

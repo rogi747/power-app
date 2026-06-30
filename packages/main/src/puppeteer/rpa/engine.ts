@@ -12,6 +12,7 @@ import {getMainWindow} from '../../mainWindow';
 import {acquireSession, releaseSession} from './browser-session';
 import {getNode, type ExecutionContext, type NodeResult} from './registry';
 import {RpaCancellationToken, cancellableDelay} from './cancellation';
+import {createTaskLogMasker} from './secrets';
 import {resolveParams} from './variables';
 
 // Side-effect imports: registering the built-in node library.
@@ -227,6 +228,10 @@ export const runWorkflow = async (
   });
   Object.assign(variables, options.variables ?? {});
 
+  const maskLog = createTaskLogMasker(definition, variables);
+  const maskRunText = (value: unknown): string | undefined =>
+    maskLog({message: String(value)}).message;
+
   const log = async (entry: Partial<RPA.TaskLog>) => {
     const row: RPA.TaskLog = {
       run_id: runId,
@@ -237,12 +242,13 @@ export const runWorkflow = async (
       thread_id: options.windowId ? String(options.windowId) : null,
       ...entry,
     };
+    const safeRow = maskLog(row);
     try {
-      await RpaDB.insertLog(row);
+      await RpaDB.insertLog(safeRow);
     } catch (e) {
       logger.error('failed to persist rpa log', e);
     }
-    getMainWindow()?.webContents.send('rpa-run-event', row);
+    getMainWindow()?.webContents.send('rpa-run-event', safeRow);
   };
 
   await log({status: 'running', message: 'Workflow started'});
@@ -274,7 +280,7 @@ export const runWorkflow = async (
     await executeFrom(start.id, graph, ctx, definition.settings ?? {}, runState, options);
   } catch (error) {
     finalStatus = runState.cancelled ? 'cancelled' : 'error';
-    runError = String(error instanceof Error ? error.message : error);
+    runError = maskRunText(error instanceof Error ? error.message : error);
     await log({status: finalStatus, message: runError, stack: (error as Error)?.stack});
   } finally {
     if (session) await releaseSession(session);

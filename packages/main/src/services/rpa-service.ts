@@ -8,6 +8,7 @@ import {RpaThreadManager} from '../puppeteer/rpa/thread-manager';
 import {RpaScheduler, type RpaScheduleInput} from '../puppeteer/rpa/scheduler';
 import {stripWorkflowSecrets} from '../puppeteer/rpa/secrets';
 import {RpaRecorder} from '../puppeteer/rpa/recorder';
+import {pickSelector} from '../puppeteer/rpa/selector-picker';
 
 const logger = createLogger(SERVICE_LOGGER_LABEL);
 
@@ -118,6 +119,10 @@ export const initRpaService = () => {
     },
   );
 
+  ipcMain.handle('rpa-run-data-batch', async (_, workflowId: number, jobs: RPA.RunDataJob[]) => {
+    return RpaThreadManager.enqueueJobs(workflowId, jobs);
+  });
+
   ipcMain.handle('rpa-queue-status', async () => {
     return RpaThreadManager.status();
   });
@@ -139,6 +144,10 @@ export const initRpaService = () => {
 
   ipcMain.handle('rpa-recorder-events', async (_, sessionId: string) => {
     return RpaRecorder.events(sessionId);
+  });
+
+  ipcMain.handle('rpa-selector-pick', async (_, windowId: number) => {
+    return pickSelector(windowId);
   });
 
   // ---- Scheduler ----------------------------------------------------------

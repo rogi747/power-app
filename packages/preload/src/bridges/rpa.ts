@@ -68,6 +68,9 @@ export const RpaBridge = {
   ) {
     return await ipcRenderer.invoke('rpa-run-batch', workflowId, windowIds, variables);
   },
+  async runDataBatch(workflowId: number, jobs: RPA.RunDataJob[]) {
+    return await ipcRenderer.invoke('rpa-run-data-batch', workflowId, jobs);
+  },
   async queueStatus() {
     return await ipcRenderer.invoke('rpa-queue-status');
   },
@@ -84,6 +87,9 @@ export const RpaBridge = {
   },
   async recorderEvents(sessionId: string): Promise<RPA.RecorderEvent[]> {
     return await ipcRenderer.invoke('rpa-recorder-events', sessionId);
+  },
+  async pickSelector(windowId: number): Promise<RPA.SelectorPickResult> {
+    return await ipcRenderer.invoke('rpa-selector-pick', windowId);
   },
 
   // ---- Scheduler ----------------------------------------------------------

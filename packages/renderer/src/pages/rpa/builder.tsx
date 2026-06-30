@@ -42,6 +42,8 @@ import type {RootState, AppDispatch} from '/@/store';
 import {
   addNode,
   appendGraph,
+  applyRunEvent,
+  clearNodeRunStatus,
   copySelectedNode,
   deleteSelectedNode,
   duplicateSelectedNode,
@@ -50,6 +52,7 @@ import {
   newWorkflow,
   setDescription,
   pasteNode,
+  updateNodeParams,
   redo,
   selectNode,
   setName,
@@ -73,6 +76,67 @@ import {firstValidationMessage, validateWorkflow} from '../../../../shared/rpa/v
 import type {RpaValidationIssue} from '../../../../shared/rpa/validator';
 
 const {Text} = Typography;
+
+const parseCsvLine = (line: string): string[] => {
+  const cells: string[] = [];
+  let current = '';
+  let quoted = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+    const next = line[i + 1];
+    if (char === '"' && quoted && next === '"') {
+      current += '"';
+      i += 1;
+      continue;
+    }
+    if (char === '"') {
+      quoted = !quoted;
+      continue;
+    }
+    if (char === ',' && !quoted) {
+      cells.push(current.trim());
+      current = '';
+      continue;
+    }
+    current += char;
+  }
+
+  cells.push(current.trim());
+  return cells;
+};
+
+const parseCsvRows = (text: string): Record<string, string>[] => {
+  const lines = text
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean);
+  if (lines.length < 2) return [];
+
+  const headers = parseCsvLine(lines[0]).map(header => header.trim()).filter(Boolean);
+  if (headers.length === 0) return [];
+
+  return lines.slice(1).map(line => {
+    const values = parseCsvLine(line);
+    return headers.reduce<Record<string, string>>((row, header, index) => {
+      row[header] = values[index] ?? '';
+      return row;
+    }, {});
+  });
+};
+
+const parseJsonVariables = (text: string): Record<string, unknown> => {
+  const trimmed = text.trim();
+  if (!trimmed) return {};
+  const parsed = JSON.parse(trimmed) as unknown;
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Variables JSON must be an object.');
+  }
+  return parsed as Record<string, unknown>;
+};
+
 
 /**
  * Process Builder. Integrates the palette, FlowCanvas, PropertyPanel and the
@@ -103,6 +167,8 @@ const RpaBuilder = () => {
     historyFuture,
     clipboardNode,
     clipboardNodes,
+    nodeRunStatus,
+    activeRunId,
   } = builder;
   const selectedNode = nodes.find(node => node.id === selectedNodeId);
   const selectedEditableCount = selectedNodeIds.filter(id => {
@@ -111,6 +177,9 @@ const RpaBuilder = () => {
   }).length;
   const canEditSelectedNode = selectedEditableCount > 0;
   const clipboardCount = clipboardNodes?.nodes.length ?? (clipboardNode ? 1 : 0);
+  const completedNodeCount = Object.values(nodeRunStatus).filter(item => item.status === 'completed').length;
+  const failedNodeCount = Object.values(nodeRunStatus).filter(item => item.status === 'error').length;
+  const runningNodeCount = Object.values(nodeRunStatus).filter(item => item.status === 'running').length;
 
   const [saving, setSaving] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -120,6 +189,9 @@ const RpaBuilder = () => {
   const [runOpen, setRunOpen] = useState(false);
   const [windows, setWindows] = useState<DB.Window[]>([]);
   const [selectedWindowIds, setSelectedWindowIds] = useState<number[]>([]);
+  const [runVariablesText, setRunVariablesText] = useState('');
+  const [csvRows, setCsvRows] = useState<Record<string, string>[]>([]);
+  const [csvFileName, setCsvFileName] = useState('');
 
   // Recorder drawer state.
   const [recorderOpen, setRecorderOpen] = useState(false);
@@ -127,6 +199,12 @@ const RpaBuilder = () => {
   const [recorderSession, setRecorderSession] = useState<RPA.RecorderSession | null>(null);
   const [recorderEvents, setRecorderEvents] = useState<RPA.RecorderEvent[]>([]);
   const [recorderBusy, setRecorderBusy] = useState(false);
+
+  // Selector picker state.
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerWindowId, setPickerWindowId] = useState<number | undefined>();
+  const [pickerBusy, setPickerBusy] = useState(false);
+  const [pickedSelector, setPickedSelector] = useState<RPA.SelectorPickResult | null>(null);
 
   // Load workflow on mount (or start a fresh one).
   useEffect(() => {
@@ -139,8 +217,7 @@ const RpaBuilder = () => {
         dispatch(newWorkflow());
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idParam]);
+  }, [dispatch, idParam]);
 
   const palette = useMemo(() => {
     const grouped: Record<string, NodeSpec[]> = {};
@@ -156,6 +233,16 @@ const RpaBuilder = () => {
     const tag = el.tagName.toLowerCase();
     return tag === 'input' || tag === 'textarea' || el.isContentEditable;
   };
+
+  useEffect(() => {
+    const unsubscribe = RpaBridge?.onRunEvent((event: RPA.TaskLog) => {
+      if (builder.workflowId && event.workflow_id && event.workflow_id !== builder.workflowId) return;
+      dispatch(applyRunEvent(event));
+    });
+    return () => {
+      unsubscribe?.();
+    };
+  }, [builder.workflowId, dispatch]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -224,8 +311,7 @@ const RpaBuilder = () => {
   });
 
   const validationResult = useMemo(
-    () => validateWorkflow(buildDefinition()),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    () => validateWorkflow({nodes, edges, variables, settings, version: 1}),
     [nodes, edges, variables, settings],
   );
 
@@ -278,6 +364,32 @@ const RpaBuilder = () => {
     }
   };
 
+
+  const csvColumns = csvRows[0] ? Object.keys(csvRows[0]) : [];
+  const dataJobCount = csvRows.length > 0 ? csvRows.length * selectedWindowIds.length : selectedWindowIds.length;
+
+  const handleCsvFile = async (file?: File) => {
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const rows = parseCsvRows(text);
+      if (rows.length === 0) {
+        messageApi.warning('CSV must contain a header row and at least one data row.');
+        return;
+      }
+      setCsvRows(rows);
+      setCsvFileName(file.name);
+      messageApi.success(`Loaded ${rows.length} CSV row${rows.length > 1 ? 's' : ''}.`);
+    } catch (error) {
+      messageApi.error('Failed to parse CSV file.');
+    }
+  };
+
+  const clearCsvRows = () => {
+    setCsvRows([]);
+    setCsvFileName('');
+  };
+
   const openRun = async () => {
     if (!validateCurrentWorkflow()) return;
     let id = builder.workflowId;
@@ -294,20 +406,54 @@ const RpaBuilder = () => {
 
   const confirmRun = async () => {
     if (!builder.workflowId || selectedWindowIds.length === 0) return;
+
+    let baseVariables: Record<string, unknown>;
     try {
+      baseVariables = parseJsonVariables(runVariablesText);
+    } catch (error) {
+      messageApi.error('Run variables must be a valid JSON object.');
+      return;
+    }
+
+    const csvDataJobs: RPA.RunDataJob[] = csvRows.flatMap(row =>
+      selectedWindowIds.map(windowId => ({
+        windowId,
+        variables: {...baseVariables, ...row},
+      })),
+    );
+
+    try {
+      dispatch(clearNodeRunStatus());
       dispatch(setRunning({running: true}));
-      if (selectedWindowIds.length === 1) {
-        await RpaBridge?.run({workflowId: builder.workflowId, windowId: selectedWindowIds[0]});
-      } else {
-        await RpaBridge?.runBatch(builder.workflowId, selectedWindowIds);
+      if (csvDataJobs.length > 0) {
+        await RpaBridge?.runDataBatch(builder.workflowId, csvDataJobs);
+        dispatch(setRunning({running: false, runId: null}));
+        messageApi.success(`Queued ${csvDataJobs.length} data job${csvDataJobs.length > 1 ? 's' : ''}.`);
+        setRunOpen(false);
+        navigate('/rpa/logs');
+        return;
       }
+
+      if (selectedWindowIds.length === 1) {
+        const result = await RpaBridge?.run({
+          workflowId: builder.workflowId,
+          windowId: selectedWindowIds[0],
+          variables: baseVariables,
+        });
+        dispatch(setRunning({running: true, runId: result?.runId ?? null}));
+        messageApi.success('Run started. Watch node status directly on the canvas.');
+        setRunOpen(false);
+        return;
+      }
+
+      await RpaBridge?.runBatch(builder.workflowId, selectedWindowIds, baseVariables);
+      dispatch(setRunning({running: false, runId: null}));
       messageApi.success(t('rpa_run_started'));
       setRunOpen(false);
       navigate('/rpa/logs');
     } catch (e) {
+      dispatch(setRunning({running: false, runId: null}));
       messageApi.error(t('rpa_run_failed'));
-    } finally {
-      dispatch(setRunning({running: false}));
     }
   };
 
@@ -475,6 +621,66 @@ const RpaBuilder = () => {
     messageApi.success(`Imported ${generated.length} recorded step${generated.length > 1 ? 's' : ''}.`);
   };
 
+
+  const selectorNodeTypes = new Set([
+    'click',
+    'doubleClick',
+    'hover',
+    'type',
+    'waitForSelector',
+    'getText',
+    'getAttribute',
+  ]);
+
+  const openSelectorPicker = async () => {
+    setPickerOpen(true);
+    const list = (await WindowBridge?.getAll()) ?? [];
+    setWindows(list);
+    if (!pickerWindowId && list[0]?.id) setPickerWindowId(list[0].id);
+  };
+
+  const startSelectorPicker = async () => {
+    if (!pickerWindowId) {
+      messageApi.error('Please select a profile/window first.');
+      return;
+    }
+    setPickerBusy(true);
+    try {
+      const result = await RpaBridge?.pickSelector(pickerWindowId);
+      if (!result) return;
+      setPickedSelector(result);
+      await navigator.clipboard?.writeText(result.selector).catch(() => undefined);
+      messageApi.success('Selector captured and copied.');
+    } catch (error) {
+      messageApi.error('Selector picker failed or timed out.');
+    } finally {
+      setPickerBusy(false);
+    }
+  };
+
+  const copyPickedSelector = async () => {
+    if (!pickedSelector?.selector) return;
+    await navigator.clipboard?.writeText(pickedSelector.selector).catch(() => undefined);
+    messageApi.success('Selector copied.');
+  };
+
+  const applyPickedSelector = () => {
+    if (!pickedSelector?.selector) {
+      messageApi.error('No selector picked yet.');
+      return;
+    }
+    if (!selectedNode) {
+      messageApi.error('Please select a node first.');
+      return;
+    }
+    if (!selectorNodeTypes.has(selectedNode.type)) {
+      messageApi.error('Selected node does not use a selector parameter.');
+      return;
+    }
+    dispatch(updateNodeParams({id: selectedNode.id, params: {selector: pickedSelector.selector}}));
+    messageApi.success('Selector applied to selected node.');
+  };
+
   // ---- Variable editor -----------------------------------------------------
   const addVariable = () => {
     dispatch(
@@ -521,8 +727,19 @@ const RpaBuilder = () => {
             </Tag>
           )}
           {selectedNodeIds.length > 1 && <Tag color="blue">{selectedNodeIds.length} selected</Tag>}
+          {activeRunId && <Tag color="processing">run {activeRunId.slice(0, 8)}</Tag>}
+          {runningNodeCount > 0 && <Tag color="blue">{runningNodeCount} running</Tag>}
+          {completedNodeCount > 0 && <Tag color="green">{completedNodeCount} passed</Tag>}
+          {failedNodeCount > 0 && <Tag color="red">{failedNodeCount} failed</Tag>}
         </Space>
         <Space size={8}>
+          <Tooltip title="Clear run highlights">
+            <Button
+              icon={<Icon icon="mdi:eraser" />}
+              disabled={Object.keys(nodeRunStatus).length === 0}
+              onClick={() => dispatch(clearNodeRunStatus())}
+            />
+          </Tooltip>
           <Tooltip title="Undo (Ctrl+Z)">
             <Button
               icon={<UndoOutlined />}
@@ -569,6 +786,11 @@ const RpaBuilder = () => {
           <Tooltip title="Record browser actions">
             <Button icon={<VideoCameraOutlined />} onClick={openRecorder}>
               Recorder
+            </Button>
+          </Tooltip>
+          <Tooltip title="Pick selector from browser">
+            <Button icon={<Icon icon="mdi:cursor-default-click-outline" />} onClick={openSelectorPicker}>
+              Pick Selector
             </Button>
           </Tooltip>
           <Tooltip title={t('rpa_variables')}>
@@ -800,6 +1022,74 @@ const RpaBuilder = () => {
       </Drawer>
 
 
+
+      {/* Selector picker drawer */}
+      <Drawer
+        title="Selector Picker"
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        width={560}
+        extra={
+          <Space>
+            <Button loading={pickerBusy} icon={<Icon icon="mdi:cursor-default-click-outline" />} onClick={startSelectorPicker}>
+              Pick
+            </Button>
+            <Button disabled={!pickedSelector?.selector} onClick={copyPickedSelector}>
+              Copy
+            </Button>
+            <Button type="primary" disabled={!pickedSelector?.selector} onClick={applyPickedSelector}>
+              Apply to node
+            </Button>
+          </Space>
+        }
+      >
+        <Space direction="vertical" style={{width: '100%'}} size={12}>
+          <Alert
+            type="info"
+            showIcon
+            message="Choose a profile, press Pick, then click the target element in the browser. The selector will be captured automatically."
+          />
+          <Select
+            style={{width: '100%'}}
+            placeholder="Select profile/window"
+            value={pickerWindowId}
+            disabled={pickerBusy}
+            onChange={setPickerWindowId}
+            optionFilterProp="label"
+            showSearch
+            options={windows.map(w => ({
+              label: `${w.name ?? w.profile_id ?? w.id} (#${w.id})`,
+              value: w.id!,
+            }))}
+          />
+          <Input.TextArea
+            rows={3}
+            value={pickedSelector?.selector ?? ''}
+            placeholder="Picked selector will appear here"
+            readOnly
+          />
+          {pickedSelector && (
+            <Space direction="vertical" style={{width: '100%'}} size={8}>
+              <Tag color="blue">{pickedSelector.tagName || 'element'}</Tag>
+              <Input value={pickedSelector.text ?? ''} placeholder="Text" readOnly />
+              <Input value={pickedSelector.value ?? ''} placeholder="Value" readOnly />
+              <Input value={pickedSelector.url} placeholder="URL" readOnly />
+            </Space>
+          )}
+          <Alert
+            type={selectedNode && selectorNodeTypes.has(selectedNode.type) ? 'success' : 'warning'}
+            showIcon
+            message={
+              selectedNode
+                ? selectorNodeTypes.has(selectedNode.type)
+                  ? `Ready to apply selector to node: ${selectedNode.label || selectedNode.type}`
+                  : `Selected node ${selectedNode.label || selectedNode.type} does not use selector.`
+                : 'Select a selector-based node on the canvas before applying.'
+            }
+          />
+        </Space>
+      </Drawer>
+
       {/* Recorder drawer */}
       <Drawer
         title="Recorder"
@@ -896,27 +1186,100 @@ const RpaBuilder = () => {
         title={t('rpa_run_title', {name})}
         open={runOpen}
         centered
-        width={520}
-        okText={t('rpa_run')}
+        width={680}
+        okText={csvRows.length > 0 ? `Queue ${dataJobCount} job${dataJobCount > 1 ? 's' : ''}` : t('rpa_run')}
         cancelText={t('footer_cancel')}
-        okButtonProps={{disabled: selectedWindowIds.length === 0}}
+        okButtonProps={{disabled: selectedWindowIds.length === 0 || dataJobCount === 0}}
         onOk={confirmRun}
         onCancel={() => setRunOpen(false)}
       >
-        <p style={{marginBottom: 8, color: '#475569'}}>{t('rpa_run_select_profiles')}</p>
-        <Select
-          mode="multiple"
-          allowClear
-          style={{width: '100%'}}
-          placeholder={t('rpa_run_profiles_placeholder')}
-          value={selectedWindowIds}
-          onChange={setSelectedWindowIds}
-          optionFilterProp="label"
-          options={windows.map(w => ({
-            label: `${w.name ?? w.profile_id ?? w.id} (#${w.id})`,
-            value: w.id!,
-          }))}
-        />
+        <Space direction="vertical" style={{width: '100%'}} size={12}>
+          <div>
+            <p style={{marginBottom: 8, color: '#475569'}}>{t('rpa_run_select_profiles')}</p>
+            <Select
+              mode="multiple"
+              allowClear
+              style={{width: '100%'}}
+              placeholder={t('rpa_run_profiles_placeholder')}
+              value={selectedWindowIds}
+              onChange={setSelectedWindowIds}
+              optionFilterProp="label"
+              options={windows.map(w => ({
+                label: `${w.name ?? w.profile_id ?? w.id} (#${w.id})`,
+                value: w.id!,
+              }))}
+            />
+          </div>
+
+          <div>
+            <Flex align="center" justify="space-between" style={{marginBottom: 8}}>
+              <span style={{fontSize: 13, color: '#475569'}}>Base variables JSON</span>
+              <Tag color="default">merged into every run</Tag>
+            </Flex>
+            <Input.TextArea
+              rows={4}
+              value={runVariablesText}
+              onChange={event => setRunVariablesText(event.target.value)}
+              placeholder={'{"username":"demo@example.com","password":"secret"}'}
+            />
+          </div>
+
+          <div>
+            <Flex align="center" justify="space-between" style={{marginBottom: 8}}>
+              <Space>
+                <span style={{fontSize: 13, color: '#475569'}}>CSV data rows</span>
+                {csvRows.length > 0 && <Tag color="blue">{csvRows.length} rows</Tag>}
+                {csvFileName && <Tag color="default">{csvFileName}</Tag>}
+              </Space>
+              <Space>
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={event => {
+                    void handleCsvFile(event.target.files?.[0]);
+                    event.currentTarget.value = '';
+                  }}
+                />
+                <Button size="small" disabled={csvRows.length === 0} onClick={clearCsvRows}>
+                  Clear CSV
+                </Button>
+              </Space>
+            </Flex>
+            <Alert
+              type="info"
+              showIcon
+              message="CSV headers become variables. Each CSV row is merged over the base JSON variables."
+            />
+          </div>
+
+          {csvRows.length > 0 && (
+            <Table
+              size="small"
+              rowKey={(_, index) => String(index)}
+              dataSource={csvRows.slice(0, 5)}
+              pagination={false}
+              scroll={{x: true}}
+              columns={csvColumns.map(column => ({
+                title: column,
+                dataIndex: column,
+                ellipsis: true,
+                render: value => <span>{String(value ?? '')}</span>,
+              }))}
+            />
+          )}
+
+          <Alert
+            type={csvRows.length > 0 ? 'success' : 'info'}
+            showIcon
+            message={
+              csvRows.length > 0
+                ? `Will queue ${dataJobCount} job${dataJobCount > 1 ? 's' : ''}: ${csvRows.length} row${csvRows.length > 1 ? 's' : ''} × ${selectedWindowIds.length} profile${selectedWindowIds.length > 1 ? 's' : ''}.`
+                : selectedWindowIds.length === 1
+                ? 'Single profile run will stay on Builder so you can watch node highlights.'
+                : 'Multi-profile run will be queued and opened in Logs.'
+            }
+          />
+        </Space>
       </Modal>
     </div>
   );

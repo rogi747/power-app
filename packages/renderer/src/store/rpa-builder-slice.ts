@@ -21,6 +21,15 @@ interface ClipboardGraph {
   edges: RPA.Edge[];
 }
 
+export interface NodeRunState {
+  status: RPA.TaskStatus;
+  runId?: string | null;
+  message?: string;
+  started_at?: string;
+  finished_at?: string;
+  duration?: number;
+}
+
 export interface BuilderState {
   workflowId: number | null;
   name: string;
@@ -38,6 +47,8 @@ export interface BuilderState {
   historyFuture: BuilderSnapshot[];
   clipboardNode: RPA.Node | null;
   clipboardNodes: ClipboardGraph | null;
+  nodeRunStatus: Record<string, NodeRunState>;
+  activeRunId: string | null;
 }
 
 const HISTORY_LIMIT = 50;
@@ -69,6 +80,8 @@ const createInitialState = (): BuilderState => ({
   historyFuture: [],
   clipboardNode: null,
   clipboardNodes: null,
+  nodeRunStatus: {},
+  activeRunId: null,
 });
 
 const initialState: BuilderState = createInitialState();
@@ -177,6 +190,8 @@ const builderSlice = createSlice({
       state.historyFuture = [];
       state.clipboardNode = null;
       state.clipboardNodes = null;
+      state.nodeRunStatus = {};
+      state.activeRunId = null;
     },
     newWorkflow() {
       return createInitialState();
@@ -359,6 +374,42 @@ const builderSlice = createSlice({
     setRunning(state, action: PayloadAction<{running: boolean; runId?: string | null}>) {
       state.running = action.payload.running;
       state.runId = action.payload.runId ?? null;
+      state.activeRunId = action.payload.runId ?? null;
+      if (action.payload.running) state.nodeRunStatus = {};
+    },
+    clearNodeRunStatus(state) {
+      state.nodeRunStatus = {};
+      state.activeRunId = null;
+    },
+    applyRunEvent(state, action: PayloadAction<RPA.TaskLog>) {
+      const event = action.payload;
+      if (!event.status) return;
+      if (state.workflowId && event.workflow_id && event.workflow_id !== state.workflowId) return;
+
+      if (event.run_id) {
+        if (!state.activeRunId) state.activeRunId = event.run_id;
+        if (state.activeRunId && state.activeRunId !== event.run_id) return;
+        state.runId = event.run_id;
+      }
+
+      if (!event.node_id) {
+        if (event.status === 'running') state.running = true;
+        if (event.status === 'completed' || event.status === 'error' || event.status === 'cancelled') {
+          state.running = false;
+        }
+        return;
+      }
+
+      state.nodeRunStatus[event.node_id] = {
+        status: event.status,
+        runId: event.run_id,
+        message: event.message,
+        started_at: event.started_at,
+        finished_at: event.finished_at,
+        duration: event.duration,
+      };
+
+      if (event.status === 'running') state.running = true;
     },
   },
 });
@@ -393,6 +444,8 @@ export const {
   setSettings,
   markSaved,
   setRunning,
+  clearNodeRunStatus,
+  applyRunEvent,
 } = builderSlice.actions;
 
 export default builderSlice.reducer;

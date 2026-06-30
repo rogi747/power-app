@@ -205,6 +205,16 @@ export namespace RPA {
     eventCount: number;
   }
 
+  export interface SelectorPickResult {
+    selector: string;
+    url: string;
+    title?: string;
+    text?: string;
+    value?: string;
+    tagName?: string;
+    timestamp: string;
+  }
+
   /** Result returned to the caller after a run finishes. */
   export interface RunResult {
     runId: string;
@@ -226,5 +236,11 @@ export namespace RPA {
     debug?: boolean;
     /** Node ids that should pause execution when reached (debug). */
     breakpoints?: string[];
+  }
+
+  export interface RunDataJob {
+    windowId: number;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    variables?: Record<string, any>;
   }
 }
