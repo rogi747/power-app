@@ -137,6 +137,41 @@ const parseJsonVariables = (text: string): Record<string, unknown> => {
   return parsed as Record<string, unknown>;
 };
 
+interface NodeRegistryState {
+  disabledTypes: string[];
+  pinnedTypes: string[];
+}
+
+const NODE_REGISTRY_STORAGE_KEY = 'rpa.nodeRegistry.v1';
+
+const normalizeRegistryState = (value: Partial<NodeRegistryState> | null | undefined): NodeRegistryState => {
+  const knownTypes = new Set(NODE_CATALOG.map(spec => spec.type));
+  const disabledTypes = Array.from(new Set(value?.disabledTypes ?? [])).filter(
+    type => knownTypes.has(type) && type !== 'start',
+  );
+  const pinnedTypes = Array.from(new Set(value?.pinnedTypes ?? [])).filter(type =>
+    knownTypes.has(type),
+  );
+  return {disabledTypes, pinnedTypes};
+};
+
+const loadNodeRegistryState = (): NodeRegistryState => {
+  if (typeof window === 'undefined') return normalizeRegistryState(null);
+  try {
+    const raw = window.localStorage.getItem(NODE_REGISTRY_STORAGE_KEY);
+    if (!raw) return normalizeRegistryState(null);
+    return normalizeRegistryState(JSON.parse(raw) as Partial<NodeRegistryState>);
+  } catch {
+    return normalizeRegistryState(null);
+  }
+};
+
+const saveNodeRegistryState = (state: NodeRegistryState) => {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(NODE_REGISTRY_STORAGE_KEY, JSON.stringify(normalizeRegistryState(state)));
+};
+
+
 
 /**
  * Process Builder. Integrates the palette, FlowCanvas, PropertyPanel and the
@@ -180,6 +215,7 @@ const RpaBuilder = () => {
   const completedNodeCount = Object.values(nodeRunStatus).filter(item => item.status === 'completed').length;
   const failedNodeCount = Object.values(nodeRunStatus).filter(item => item.status === 'error').length;
   const runningNodeCount = Object.values(nodeRunStatus).filter(item => item.status === 'running').length;
+  const pausedNodeCount = Object.values(nodeRunStatus).filter(item => item.status === 'paused').length;
 
   const [saving, setSaving] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -192,6 +228,7 @@ const RpaBuilder = () => {
   const [runVariablesText, setRunVariablesText] = useState('');
   const [csvRows, setCsvRows] = useState<Record<string, string>[]>([]);
   const [csvFileName, setCsvFileName] = useState('');
+  const [debugMode, setDebugMode] = useState(false);
 
   // Recorder drawer state.
   const [recorderOpen, setRecorderOpen] = useState(false);
@@ -206,6 +243,11 @@ const RpaBuilder = () => {
   const [pickerBusy, setPickerBusy] = useState(false);
   const [pickedSelector, setPickedSelector] = useState<RPA.SelectorPickResult | null>(null);
 
+  // Node registry UI state.
+  const [registryOpen, setRegistryOpen] = useState(false);
+  const [registrySearch, setRegistrySearch] = useState('');
+  const [registryState, setRegistryState] = useState(loadNodeRegistryState);
+
   // Load workflow on mount (or start a fresh one).
   useEffect(() => {
     (async () => {
@@ -219,13 +261,75 @@ const RpaBuilder = () => {
     })();
   }, [dispatch, idParam]);
 
+  useEffect(() => {
+    saveNodeRegistryState(registryState);
+  }, [registryState]);
+
+  const disabledNodeTypes = useMemo(
+    () => new Set(registryState.disabledTypes),
+    [registryState.disabledTypes],
+  );
+  const pinnedNodeTypes = useMemo(
+    () => new Set(registryState.pinnedTypes),
+    [registryState.pinnedTypes],
+  );
+  const enabledCatalog = useMemo(
+    () => NODE_CATALOG.filter(spec => !disabledNodeTypes.has(spec.type)),
+    [disabledNodeTypes],
+  );
+  const pinnedSpecs = useMemo(
+    () => registryState.pinnedTypes
+      .map(type => NODE_CATALOG.find(spec => spec.type === type))
+      .filter((spec): spec is NodeSpec => !!spec && !disabledNodeTypes.has(spec.type)),
+    [disabledNodeTypes, registryState.pinnedTypes],
+  );
+  const registryFilteredSpecs = useMemo(() => {
+    const q = registrySearch.trim().toLowerCase();
+    if (!q) return NODE_CATALOG;
+    return NODE_CATALOG.filter(spec =>
+      [spec.type, spec.label, spec.description, spec.category]
+        .join(' ')
+        .toLowerCase()
+        .includes(q),
+    );
+  }, [registrySearch]);
+
   const palette = useMemo(() => {
     const grouped: Record<string, NodeSpec[]> = {};
-    NODE_CATALOG.forEach(spec => {
+    enabledCatalog.forEach(spec => {
       (grouped[spec.category] ??= []).push(spec);
     });
     return grouped;
-  }, []);
+  }, [enabledCatalog]);
+
+  const toggleNodeEnabled = (spec: NodeSpec, enabled: boolean) => {
+    if (spec.type === 'start' && !enabled) {
+      messageApi.warning('Start node cannot be disabled.');
+      return;
+    }
+    setRegistryState(current => {
+      const disabled = new Set(current.disabledTypes);
+      if (enabled) disabled.delete(spec.type);
+      else disabled.add(spec.type);
+      return normalizeRegistryState({...current, disabledTypes: [...disabled]});
+    });
+  };
+
+  const toggleNodePinned = (spec: NodeSpec) => {
+    setRegistryState(current => {
+      const pinned = new Set(current.pinnedTypes);
+      if (pinned.has(spec.type)) pinned.delete(spec.type);
+      else pinned.add(spec.type);
+      return normalizeRegistryState({...current, pinnedTypes: [...pinned]});
+    });
+  };
+
+  const resetNodeRegistry = () => {
+    setRegistryState(normalizeRegistryState(null));
+    setRegistrySearch('');
+    messageApi.success('Node registry reset.');
+  };
+
 
   const isTextInputActive = () => {
     const el = document.activeElement as HTMLElement | null;
@@ -365,6 +469,33 @@ const RpaBuilder = () => {
   };
 
 
+
+  const sendDebugCommand = async (command: 'pause' | 'resume' | 'stepOver') => {
+    if (!activeRunId) {
+      messageApi.warning('No active run to debug.');
+      return;
+    }
+    const result = await RpaBridge?.debugCommand(activeRunId, command);
+    if (!result?.success) {
+      messageApi.error(result?.message ?? 'Debug command failed.');
+      return;
+    }
+    if (command === 'pause') messageApi.info('Pause requested. The run will stop before the next node.');
+    if (command === 'resume') messageApi.success('Run resumed.');
+    if (command === 'stepOver') messageApi.success('Step over requested.');
+  };
+
+  const cancelActiveRun = async () => {
+    if (!activeRunId) return;
+    const result = await RpaBridge?.cancel(activeRunId);
+    if (result?.success) {
+      dispatch(setRunning({running: false, runId: activeRunId}));
+      messageApi.success('Run cancelled.');
+    } else {
+      messageApi.error(result?.message ?? 'Cancel failed.');
+    }
+  };
+
   const csvColumns = csvRows[0] ? Object.keys(csvRows[0]) : [];
   const dataJobCount = csvRows.length > 0 ? csvRows.length * selectedWindowIds.length : selectedWindowIds.length;
 
@@ -439,6 +570,7 @@ const RpaBuilder = () => {
           workflowId: builder.workflowId,
           windowId: selectedWindowIds[0],
           variables: baseVariables,
+          debug: debugMode,
         });
         dispatch(setRunning({running: true, runId: result?.runId ?? null}));
         messageApi.success('Run started. Watch node status directly on the canvas.');
@@ -695,6 +827,31 @@ const RpaBuilder = () => {
     dispatch(setVariables(variables.filter((_, i) => i !== index)));
   };
 
+  const renderPaletteNode = (spec: NodeSpec, pinned = false) => (
+    <div
+      key={spec.type}
+      onClick={() => addNodeToCanvas(spec)}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '6px 8px',
+        borderRadius: 8,
+        cursor: 'pointer',
+        border: '1px solid #f0f2f5',
+        borderLeft: `3px solid ${CATEGORY_COLORS[spec.category]}`,
+        background: pinned ? '#fff7e6' : '#fff',
+      }}
+    >
+      <Icon
+        icon={spec.icon}
+        style={{color: CATEGORY_COLORS[spec.category], fontSize: 16}}
+      />
+      <Text style={{fontSize: 13, flex: 1}}>{spec.label}</Text>
+      {pinned && <Icon icon="mdi:star" style={{color: '#f59e0b', fontSize: 14}} />}
+    </div>
+  );
+
   return (
     <div style={{display: 'flex', flexDirection: 'column', height: '100%'}}>
       {contextHolder}
@@ -727,12 +884,49 @@ const RpaBuilder = () => {
             </Tag>
           )}
           {selectedNodeIds.length > 1 && <Tag color="blue">{selectedNodeIds.length} selected</Tag>}
+          {registryState.disabledTypes.length > 0 && (
+            <Tag color="default">{registryState.disabledTypes.length} node disabled</Tag>
+          )}
+          {registryState.pinnedTypes.length > 0 && (
+            <Tag color="gold">{registryState.pinnedTypes.length} pinned</Tag>
+          )}
           {activeRunId && <Tag color="processing">run {activeRunId.slice(0, 8)}</Tag>}
           {runningNodeCount > 0 && <Tag color="blue">{runningNodeCount} running</Tag>}
+          {pausedNodeCount > 0 && <Tag color="purple">{pausedNodeCount} paused</Tag>}
           {completedNodeCount > 0 && <Tag color="green">{completedNodeCount} passed</Tag>}
           {failedNodeCount > 0 && <Tag color="red">{failedNodeCount} failed</Tag>}
         </Space>
         <Space size={8}>
+          {activeRunId && running && (
+            <>
+              <Tooltip title="Pause before next node">
+                <Button
+                  icon={<Icon icon="mdi:pause" />}
+                  onClick={() => void sendDebugCommand('pause')}
+                />
+              </Tooltip>
+              <Tooltip title="Resume continuously">
+                <Button
+                  icon={<Icon icon="mdi:play" />}
+                  onClick={() => void sendDebugCommand('resume')}
+                />
+              </Tooltip>
+              <Tooltip title="Step over one node">
+                <Button
+                  icon={<Icon icon="mdi:debug-step-over" />}
+                  disabled={pausedNodeCount === 0}
+                  onClick={() => void sendDebugCommand('stepOver')}
+                />
+              </Tooltip>
+              <Tooltip title="Cancel active run">
+                <Button
+                  danger
+                  icon={<Icon icon="mdi:stop" />}
+                  onClick={() => void cancelActiveRun()}
+                />
+              </Tooltip>
+            </>
+          )}
           <Tooltip title="Clear run highlights">
             <Button
               icon={<Icon icon="mdi:eraser" />}
@@ -783,6 +977,11 @@ const RpaBuilder = () => {
               onClick={() => dispatch(deleteSelectedNode())}
             />
           </Tooltip>
+          <Tooltip title="Manage node registry">
+            <Button icon={<Icon icon="mdi:puzzle-outline" />} onClick={() => setRegistryOpen(true)}>
+              Registry
+            </Button>
+          </Tooltip>
           <Tooltip title="Record browser actions">
             <Button icon={<VideoCameraOutlined />} onClick={openRecorder}>
               Recorder
@@ -826,6 +1025,17 @@ const RpaBuilder = () => {
             background: '#fff',
           }}
         >
+          {pinnedSpecs.length > 0 && (
+            <div style={{padding: '10px 12px 4px'}}>
+              <Flex align="center" gap={6} style={{marginBottom: 8}}>
+                <Icon icon="mdi:star" style={{color: '#f59e0b'}} />
+                <span style={{fontWeight: 600, fontSize: 13}}>Pinned</span>
+              </Flex>
+              <Space direction="vertical" style={{width: '100%'}} size={6}>
+                {pinnedSpecs.map(spec => renderPaletteNode(spec, true))}
+              </Space>
+            </div>
+          )}
           <Collapse
             defaultActiveKey={Object.keys(palette)}
             ghost
@@ -838,28 +1048,7 @@ const RpaBuilder = () => {
               ),
               children: (
                 <Space direction="vertical" style={{width: '100%'}} size={6}>
-                  {specs.map(spec => (
-                    <div
-                      key={spec.type}
-                      onClick={() => addNodeToCanvas(spec)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        padding: '6px 8px',
-                        borderRadius: 8,
-                        cursor: 'pointer',
-                        border: '1px solid #f0f2f5',
-                        borderLeft: `3px solid ${CATEGORY_COLORS[spec.category]}`,
-                      }}
-                    >
-                      <Icon
-                        icon={spec.icon}
-                        style={{color: CATEGORY_COLORS[spec.category], fontSize: 16}}
-                      />
-                      <Text style={{fontSize: 13}}>{spec.label}</Text>
-                    </div>
-                  ))}
+                  {specs.map(spec => renderPaletteNode(spec))}
                 </Space>
               ),
             }))}
@@ -1022,6 +1211,148 @@ const RpaBuilder = () => {
       </Drawer>
 
 
+
+      {/* Node registry drawer */}
+      <Drawer
+        title="Node Registry"
+        open={registryOpen}
+        onClose={() => setRegistryOpen(false)}
+        width={860}
+        extra={
+          <Space>
+            <Tag color="blue">{enabledCatalog.length} enabled</Tag>
+            <Tag color="default">{registryState.disabledTypes.length} disabled</Tag>
+            <Button size="small" onClick={resetNodeRegistry}>Reset</Button>
+          </Space>
+        }
+      >
+        <Space direction="vertical" style={{width: '100%'}} size={12}>
+          <Alert
+            type="info"
+            showIcon
+            message="This registry controls which built-in/plugin nodes appear in the palette. Runtime executors are unchanged; this is the management UI layer for the node/plugin system."
+          />
+          <Input.Search
+            allowClear
+            placeholder="Search by node name, type, category, description..."
+            value={registrySearch}
+            onChange={event => setRegistrySearch(event.target.value)}
+          />
+          <Table<NodeSpec>
+            size="small"
+            rowKey="type"
+            dataSource={registryFilteredSpecs}
+            pagination={{pageSize: 8}}
+            expandable={{
+              expandedRowRender: (spec: NodeSpec) => (
+                <Space direction="vertical" style={{width: '100%'}} size={8}>
+                  <div>
+                    <Text strong>Fields</Text>
+                    <div style={{marginTop: 6}}>
+                      {spec.fields.length === 0 ? (
+                        <Tag color="default">No fields</Tag>
+                      ) : (
+                        spec.fields.map(field => (
+                          <Tag key={field.key} color={field.secret ? 'red' : 'blue'}>
+                            {field.key}: {field.type}{field.secret ? ' secret' : ''}
+                          </Tag>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <Text strong>Outputs</Text>
+                    <div style={{marginTop: 6}}>
+                      {(spec.outputs ?? [{id: 'default', label: 'Default'}]).map(output => (
+                        <Tag key={output.id} color="green">
+                          {output.id}{output.label ? `: ${output.label}` : ''}
+                        </Tag>
+                      ))}
+                    </div>
+                  </div>
+                </Space>
+              ),
+            }}
+            columns={[
+              {
+                title: 'Node',
+                render: (_: unknown, spec: NodeSpec) => (
+                  <Flex align="center" gap={10}>
+                    <Icon
+                      icon={spec.icon}
+                      style={{color: CATEGORY_COLORS[spec.category], fontSize: 20}}
+                    />
+                    <div style={{minWidth: 0}}>
+                      <div style={{fontWeight: 600}}>{spec.label}</div>
+                      <div style={{fontSize: 12, color: '#64748b'}}>{spec.type}</div>
+                      <div style={{fontSize: 12, color: '#94a3b8'}}>{spec.description}</div>
+                    </div>
+                  </Flex>
+                ),
+              },
+              {
+                title: 'Category',
+                width: 120,
+                render: (_: unknown, spec: NodeSpec) => (
+                  <Tag color={CATEGORY_COLORS[spec.category]}>
+                    {CATEGORY_LABELS[spec.category]}
+                  </Tag>
+                ),
+              },
+              {
+                title: 'Schema',
+                width: 130,
+                render: (_: unknown, spec: NodeSpec) => (
+                  <Space direction="vertical" size={2}>
+                    <Tag color="blue">{spec.fields.length} fields</Tag>
+                    <Tag color="green">{(spec.outputs ?? [{id: 'default', label: 'Default'}]).length} outputs</Tag>
+                  </Space>
+                ),
+              },
+              {
+                title: 'Pin',
+                width: 80,
+                render: (_: unknown, spec: NodeSpec) => (
+                  <Button
+                    size="small"
+                    type={pinnedNodeTypes.has(spec.type) ? 'primary' : 'default'}
+                    icon={<Icon icon={pinnedNodeTypes.has(spec.type) ? 'mdi:star' : 'mdi:star-outline'} />}
+                    onClick={() => toggleNodePinned(spec)}
+                  />
+                ),
+              },
+              {
+                title: 'Enabled',
+                width: 100,
+                render: (_: unknown, spec: NodeSpec) => (
+                  <Switch
+                    size="small"
+                    checked={!disabledNodeTypes.has(spec.type)}
+                    disabled={spec.type === 'start'}
+                    onChange={checked => toggleNodeEnabled(spec, checked)}
+                  />
+                ),
+              },
+              {
+                title: '',
+                width: 92,
+                render: (_: unknown, spec: NodeSpec) => (
+                  <Button
+                    size="small"
+                    disabled={disabledNodeTypes.has(spec.type)}
+                    onClick={() => {
+                      addNodeToCanvas(spec);
+                      setRegistryOpen(false);
+                    }}
+                  >
+                    Add
+                  </Button>
+                ),
+              },
+            ]}
+          />
+        </Space>
+      </Drawer>
 
       {/* Selector picker drawer */}
       <Drawer
@@ -1268,12 +1599,24 @@ const RpaBuilder = () => {
             />
           )}
 
+          <Flex align="center" gap={8}>
+            <Switch
+              checked={debugMode}
+              disabled={csvRows.length > 0 || selectedWindowIds.length !== 1}
+              onChange={setDebugMode}
+            />
+            <span style={{fontSize: 13, color: '#475569'}}>Debug step mode</span>
+            <Tag color="purple">pause before each node</Tag>
+          </Flex>
+
           <Alert
-            type={csvRows.length > 0 ? 'success' : 'info'}
+            type={csvRows.length > 0 ? 'success' : debugMode ? 'warning' : 'info'}
             showIcon
             message={
               csvRows.length > 0
                 ? `Will queue ${dataJobCount} job${dataJobCount > 1 ? 's' : ''}: ${csvRows.length} row${csvRows.length > 1 ? 's' : ''} × ${selectedWindowIds.length} profile${selectedWindowIds.length > 1 ? 's' : ''}.`
+                : debugMode
+                ? 'Debug run will pause before the first node. Use Resume or Step Over from the toolbar.'
                 : selectedWindowIds.length === 1
                 ? 'Single profile run will stay on Builder so you can watch node highlights.'
                 : 'Multi-profile run will be queued and opened in Logs.'

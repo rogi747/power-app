@@ -46,6 +46,12 @@ export const RpaBridge = {
   async cancel(runId: string) {
     return await ipcRenderer.invoke('rpa-cancel', runId);
   },
+  async debugCommand(runId: string, command: 'pause' | 'resume' | 'stepOver') {
+    return await ipcRenderer.invoke('rpa-debug-command', runId, command);
+  },
+  async debugState(runId: string) {
+    return await ipcRenderer.invoke('rpa-debug-state', runId);
+  },
 
   // ---- Task logs ----------------------------------------------------------
   async logs(filter?: {

@@ -3,7 +3,7 @@ import {RpaDB} from '../db/rpa';
 import type {RPA} from '../../../shared/types/rpa';
 import {createLogger} from '../../../shared/utils/logger';
 import {SERVICE_LOGGER_LABEL} from '../constants';
-import {startWorkflowRun, cancelRun} from '../puppeteer/rpa/engine';
+import {startWorkflowRun, cancelRun, debugRun, getDebugState} from '../puppeteer/rpa/engine';
 import {RpaThreadManager} from '../puppeteer/rpa/thread-manager';
 import {RpaScheduler, type RpaScheduleInput} from '../puppeteer/rpa/scheduler';
 import {stripWorkflowSecrets} from '../puppeteer/rpa/secrets';
@@ -109,6 +109,15 @@ export const initRpaService = () => {
   ipcMain.handle('rpa-cancel', async (_, runId: string) => {
     const ok = cancelRun(runId);
     return {success: ok, message: ok ? 'Run cancelled.' : 'Run not found.'};
+  });
+
+  ipcMain.handle('rpa-debug-command', async (_, runId: string, command: 'pause' | 'resume' | 'stepOver') => {
+    const state = debugRun(runId, command);
+    return {success: !!state, message: state ? `Debug ${command}.` : 'Run not found.', data: state};
+  });
+
+  ipcMain.handle('rpa-debug-state', async (_, runId: string) => {
+    return getDebugState(runId);
   });
 
   // Enqueue a workflow across many profiles, honouring the thread limit.

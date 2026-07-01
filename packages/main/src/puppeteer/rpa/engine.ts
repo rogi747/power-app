@@ -12,6 +12,7 @@ import {getMainWindow} from '../../mainWindow';
 import {acquireSession, releaseSession} from './browser-session';
 import {getNode, type ExecutionContext, type NodeResult} from './registry';
 import {RpaCancellationToken, cancellableDelay} from './cancellation';
+import {RpaDebugController, type RpaDebugCommand, type RpaDebugSnapshot} from './debug-controller';
 import {createTaskLogMasker} from './secrets';
 import {resolveParams} from './variables';
 
@@ -81,18 +82,36 @@ const captureErrorArtifacts = async (
   return artifacts;
 };
 
-/** Tracks in-flight runs so they can be cancelled by id. */
-const activeRuns = new Map<string, {cancelled: boolean; token: RpaCancellationToken}>();
+interface ActiveRunState {
+  cancelled: boolean;
+  token: RpaCancellationToken;
+  debug: RpaDebugController;
+}
+
+/** Tracks in-flight runs so they can be cancelled/debugged by id. */
+const activeRuns = new Map<string, ActiveRunState>();
 
 export const cancelRun = (runId: string): boolean => {
   const run = activeRuns.get(runId);
   if (run) {
     run.cancelled = true;
+    run.debug.cancel();
     run.token.cancel();
     return true;
   }
   return false;
 };
+
+export const debugRun = (runId: string, command: RpaDebugCommand): RpaDebugSnapshot | null => {
+  const run = activeRuns.get(runId);
+  if (!run) return null;
+  if (command === 'pause') return run.debug.pause();
+  if (command === 'resume') return run.debug.resume();
+  return run.debug.stepOver();
+};
+
+export const getDebugState = (runId: string): RpaDebugSnapshot | null =>
+  activeRuns.get(runId)?.debug.snapshot() ?? null;
 
 interface Graph {
   nodes: Map<string, RPA.Node>;
@@ -197,7 +216,11 @@ export const runWorkflow = async (
   runIdOverride?: string,
 ): Promise<RPA.RunResult> => {
   const runId = runIdOverride ?? randomUUID();
-  const runState = {cancelled: false, token: new RpaCancellationToken()};
+  const runState: ActiveRunState = {
+    cancelled: false,
+    token: new RpaCancellationToken(),
+    debug: new RpaDebugController(options),
+  };
   activeRuns.set(runId, runState);
 
   const wfRecord = record ?? (await RpaDB.getById(options.workflowId));
@@ -299,7 +322,7 @@ const executeFrom = async (
   graph: Graph,
   ctx: ExecutionContext,
   settings: RPA.WorkflowSettings,
-  runState: {cancelled: boolean; token: RpaCancellationToken},
+  runState: ActiveRunState,
   options: RPA.RunOptions,
   stopAt?: string,
 ): Promise<NodeResult | void> => {
@@ -318,10 +341,7 @@ const executeFrom = async (
       continue;
     }
 
-    // Debug breakpoint: pause is represented as a logged stop in this slice.
-    if (options.debug && options.breakpoints?.includes(node.id)) {
-      await ctx.log({node_id: node.id, node_type: node.type, status: 'paused', message: 'Breakpoint'});
-    }
+    await runState.debug.checkpoint(ctx, node);
 
     const startedAt = Date.now();
     await ctx.log({
@@ -382,7 +402,7 @@ const runLoop = async (
   graph: Graph,
   ctx: ExecutionContext,
   settings: RPA.WorkflowSettings,
-  runState: {cancelled: boolean; token: RpaCancellationToken},
+  runState: ActiveRunState,
   options: RPA.RunOptions,
 ): Promise<NodeResult | void> => {
   const params = resolveParams(node.params, ctx.variables);
